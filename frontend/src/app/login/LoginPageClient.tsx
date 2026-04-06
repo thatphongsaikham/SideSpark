@@ -43,6 +43,8 @@ export default function LoginPageClient({ registered, redirectUrl }: LoginPageCl
         redirect: false,
       })
 
+      console.log('[Login] signIn result:', JSON.stringify(result))
+
       if (result?.error) {
         if (result.error === 'CredentialsSignin') {
           setErrors({ general: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' })
@@ -50,22 +52,8 @@ export default function LoginPageClient({ registered, redirectUrl }: LoginPageCl
           setErrors({ general: result.error })
         }
       } else if (result?.ok) {
-        let finalUrl = redirectUrl
-
-        if (result.url) {
-          try {
-            const parsedUrl = new URL(result.url, window.location.origin)
-            const path = parsedUrl.pathname
-            // Only use result.url if it's a real app path, not an internal NextAuth route
-            if (path && !path.startsWith('/api/auth') && path !== '/login' && path !== '/register') {
-              finalUrl = `${path}${parsedUrl.search}${parsedUrl.hash}`
-            }
-          } catch {
-            // URL parsing failed, keep using redirectUrl
-          }
-        }
-
-        window.location.assign(finalUrl)
+        console.log('[Login] Success, redirecting to:', redirectUrl, 'result.url:', result.url)
+        window.location.href = redirectUrl
       }
     } catch {
       setErrors({ general: 'เกิดข้อผิดพลาด กรุณาลองใหม่' })
