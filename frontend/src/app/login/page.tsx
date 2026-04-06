@@ -10,12 +10,26 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Loader2, Mail, Lock, AlertCircle } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 
+function normalizeRedirectPath(path: string | null): string {
+  if (!path) return '/main'
+
+  if (!path.startsWith('/')) return '/main'
+
+  const pathname = path.split(/[?#]/)[0]
+
+  if (pathname === '/' || pathname === '/login' || pathname === '/register') {
+    return '/main'
+  }
+
+  return path
+}
+
 function LoginPageContent() {
   const searchParams = useSearchParams()
   const registered = searchParams.get('registered')
   // รับค่า callbackUrl หรือ redirect ถ้าไม่มีให้ไปหน้าไอเดียหลัก '/main'
-  const rawRedirectUrl = searchParams.get('callbackUrl') || searchParams.get('redirect') || '/main'
-  const redirectUrl = rawRedirectUrl.startsWith('/') ? rawRedirectUrl : '/main'
+  const rawRedirectUrl = searchParams.get('callbackUrl') || searchParams.get('redirect')
+  const redirectUrl = normalizeRedirectPath(rawRedirectUrl)
 
   return <LoginPageView registered={registered} redirectUrl={redirectUrl} />
 }
@@ -45,6 +59,7 @@ function LoginPageView({ registered, redirectUrl }: { registered: string | null,
       const result = await signIn('credentials', {
         email: formData.email,
         password: formData.password,
+        callbackUrl: redirectUrl,
         redirect: false,
       })
 
@@ -55,8 +70,16 @@ function LoginPageView({ registered, redirectUrl }: { registered: string | null,
           setErrors({ general: result.error })
         }
       } else if (result?.ok) {
-        // เมื่อสำเร็จ ให้ไปที่ URL ที่ตั้งใจไว้แต่แรก
-        window.location.href = redirectUrl;
+        // ให้ใช้ URL ที่ NextAuth คืนกลับมา ถ้ามี และ normalize ก่อนนำทาง
+        const finalUrl = result.url
+          ? (() => {
+              const parsedUrl = new URL(result.url, window.location.origin)
+              const pathWithQuery = `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
+              return normalizeRedirectPath(pathWithQuery)
+            })()
+          : redirectUrl
+
+        window.location.assign(finalUrl)
       }
     } catch {
       setErrors({ general: 'เกิดข้อผิดพลาด กรุณาลองใหม่' })
