@@ -1,4 +1,7 @@
 {
   "testing.coverageToolbarEnabled": true,
-  "vitest.rootConfig": "./vitest.config.ts"
+  "vitest.rootConfig": "./vitest.config.ts",
+  "chat.tools.terminal.autoApprove": {
+    "pnpm": true
+  }
 }
