@@ -1,0 +1,31 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
+
+export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+
+  // 1. ตรวจสอบ Session จาก Cookie ของ NextAuth
+  const session = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  // 2. Logic: ถ้า Login แล้ว และอยู่ที่หน้า Root ('/')
+  if (path === "/" && session) {
+    // ทำการ Rewrite ไปที่โฟลเดอร์ /main (User จะยังเห็น URL เป็น / เหมือนเดิม)
+    return NextResponse.rewrite(new URL("/main", req.url));
+  }
+
+  // 3. กันเหนียว: ถ้าพยายามเข้าหน้า /login ทั้งที่ Login แล้ว ให้ส่งไปหน้าแรก
+  if (path === "/login" && session) {
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  // กำหนดให้ Middleware ทำงานเฉพาะหน้าแรก และหน้า Login
+  matcher: ["/", "/login"],
+};

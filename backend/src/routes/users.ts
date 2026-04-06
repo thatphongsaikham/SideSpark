@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma'
 import { authMiddleware } from '../middleware/auth'
 
 const router = express.Router()
+type UserParams = { id: string }
 
 // Apply auth middleware to all routes
 router.use(authMiddleware)
@@ -19,7 +20,6 @@ router.get('/me', async (req: Request, res: Response) => {
         username: true,
         email: true,
         name: true,
-        emailVerified: true,
         createdAt: true,
         skills: {
           include: {
@@ -83,7 +83,7 @@ router.put('/me', async (req: Request, res: Response) => {
 })
 
 // GET /api/users/:id - Get user by ID (public profile)
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request<UserParams>, res: Response) => {
   try {
     const { id } = req.params
 

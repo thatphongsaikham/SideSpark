@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma'
 import { authMiddleware } from '../middleware/auth'
 
 const router = express.Router()
+type ProjectParams = { id: string }
+type ProjectTaskParams = { id: string; taskId: string }
 
 // Apply auth middleware to all routes
 router.use(authMiddleware)
@@ -62,7 +64,7 @@ router.get('/', async (req: Request, res: Response) => {
 })
 
 // GET /api/projects/:id - Get single project with details
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request<ProjectParams>, res: Response) => {
   try {
     const { id } = req.params
     const { userId } = req.user!
@@ -152,7 +154,7 @@ router.post('/', async (req: Request, res: Response) => {
 })
 
 // PUT /api/projects/:id - Update project
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', async (req: Request<ProjectParams>, res: Response) => {
   try {
     const { id } = req.params
     const { userId } = req.user!
@@ -191,7 +193,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 })
 
 // DELETE /api/projects/:id - Delete project
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request<ProjectParams>, res: Response) => {
   try {
     const { id } = req.params
     const { userId } = req.user!
@@ -219,7 +221,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
 // Task-specific routes
 // POST /api/projects/:id/tasks - Add task to project
-router.post('/:id/tasks', async (req: Request, res: Response) => {
+router.post('/:id/tasks', async (req: Request<ProjectParams>, res: Response) => {
   try {
     const { id } = req.params
     const { userId } = req.user!
@@ -261,7 +263,7 @@ router.post('/:id/tasks', async (req: Request, res: Response) => {
 })
 
 // PUT /api/projects/:id/tasks/:taskId - Update task
-router.put('/:id/tasks/:taskId', async (req: Request, res: Response) => {
+router.put('/:id/tasks/:taskId', async (req: Request<ProjectTaskParams>, res: Response) => {
   try {
     const { taskId } = req.params
     const { userId } = req.user!
@@ -296,7 +298,7 @@ router.put('/:id/tasks/:taskId', async (req: Request, res: Response) => {
 })
 
 // DELETE /api/projects/:id/tasks/:taskId - Delete task
-router.delete('/:id/tasks/:taskId', async (req: Request, res: Response) => {
+router.delete('/:id/tasks/:taskId', async (req: Request<ProjectTaskParams>, res: Response) => {
   try {
     const { taskId } = req.params
     const { userId } = req.user!

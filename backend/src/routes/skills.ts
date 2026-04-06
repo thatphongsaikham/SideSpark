@@ -3,40 +3,93 @@ import { prisma } from '../lib/prisma'
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth'
 
 const router = express.Router()
+type SkillParams = { id: string }
+
+function getSingleQueryValue(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim()
+    return trimmedValue.length > 0 ? trimmedValue : undefined
+  }
+
+  return undefined
+}
 
 // GET /api/skills - Get all skills (public endpoint)
 router.get('/', optionalAuthMiddleware, async (req: Request, res: Response) => {
   try {
-    const { category } = req.query
+    const category = getSingleQueryValue(req.query.category)
+    const searchQuery = getSingleQueryValue(req.query.q)
 
-    const whereClause: any = {}
+    const whereClause: {
+      category?: string
+      OR?: Array<{
+        name?: { contains: string; mode: 'insensitive' }
+        nameEn?: { contains: string; mode: 'insensitive' }
+      }>
+    } = {}
+
     if (category) {
       whereClause.category = category
     }
 
-    const skills = await prisma.skill.findMany({
-      where: whereClause,
-      orderBy: { name: 'asc' }
-    })
-
-    // If user is authenticated, include their skills
-    let userSkills: any[] = []
-    if (req.user) {
-      const userSkillRecords = await prisma.userSkill.findMany({
-        where: { userId: req.user.userId },
-        include: { skill: true }
-      })
-
-      userSkills = userSkillRecords.map(us => ({
-        ...us.skill,
-        userSkillId: us.id,
-        addedAt: us.createdAt
-      }))
+    if (searchQuery) {
+      whereClause.OR = [
+        {
+          name: {
+            contains: searchQuery,
+            mode: 'insensitive',
+          },
+        },
+        {
+          nameEn: {
+            contains: searchQuery,
+            mode: 'insensitive',
+          },
+        },
+      ]
     }
 
+    // If user is authenticated, include their skills and selection state
+    let userSkillRecords: Array<{
+      id: string
+      createdAt: Date
+      skillId: string
+      skill: {
+        id: string
+        name: string
+        nameEn: string | null
+        category: string | null
+      }
+    }> = []
+
+    if (req.user) {
+      userSkillRecords = await prisma.userSkill.findMany({
+        where: { userId: req.user.userId },
+        include: { skill: true },
+      })
+    }
+
+    const selectedSkillIds = new Set(userSkillRecords.map((userSkill) => userSkill.skillId))
+
+    const skills = await prisma.skill.findMany({
+      where: whereClause,
+      orderBy: { name: 'asc' },
+    })
+
+    const skillsWithSelectionState = skills.map((skill) => ({
+      ...skill,
+      isSelected: selectedSkillIds.has(skill.id),
+    }))
+
+    const userSkills = userSkillRecords.map((userSkill) => ({
+      ...userSkill.skill,
+      userSkillId: userSkill.id,
+      addedAt: userSkill.createdAt,
+    }))
+
     res.json({
-      skills,
-      userSkills
+      skills: skillsWithSelectionState,
+      userSkills,
     })
   } catch (error) {
     console.error('Get skills error:', error)
@@ -45,7 +98,7 @@ router.get('/', optionalAuthMiddleware, async (req: Request, res: Response) => {
 })
 
 // GET /api/skills/:id - Get skill by ID
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request<SkillParams>, res: Response) => {
   try {
     const { id } = req.params
 
@@ -65,7 +118,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 })
 
 // POST /api/skills/:id/add - Add skill to user's profile
-router.post('/:id/add', authMiddleware, async (req: Request, res: Response) => {
+router.post('/:id/add', authMiddleware, async (req: Request<SkillParams>, res: Response) => {
   try {
     const { id } = req.params
     const { userId } = req.user!
@@ -111,7 +164,7 @@ router.post('/:id/add', authMiddleware, async (req: Request, res: Response) => {
 })
 
 // DELETE /api/skills/:id/remove - Remove skill from user's profile
-router.delete('/:id/remove', authMiddleware, async (req: Request, res: Response) => {
+router.delete('/:id/remove', authMiddleware, async (req: Request<SkillParams>, res: Response) => {
   try {
     const { id } = req.params
     const { userId } = req.user!

@@ -1,10 +1,11 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import type { Session } from 'next-auth'
 import { signIn, signOut, useSession } from 'next-auth/react'
 
 interface AuthContextType {
-  user: any
+  user: Session['user'] | null
   loading: boolean
   accessToken: string | null
   login: (email: string, password: string) => Promise<void>

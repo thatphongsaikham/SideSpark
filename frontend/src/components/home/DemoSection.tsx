@@ -1,10 +1,8 @@
 "use client"
-import React, { useState } from "react"
-import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Lightbulb, TrendingUp, BarChart3, Target, ArrowRight, CheckCircle2, Sparkles, Zap, ShieldCheck, Users } from "lucide-react"
+import { Lightbulb, TrendingUp, BarChart3, ArrowRight, CheckCircle2 } from "lucide-react"
 
 export default function DemoSection() {
   return (

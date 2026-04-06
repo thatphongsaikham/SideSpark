@@ -1,6 +1,33 @@
-import { getSession } from 'next-auth/react'
+import { getAuthSession } from '@/lib/auth-session'
+import { getApiBaseUrl } from '@/lib/runtime-config'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const API_URL = getApiBaseUrl()
+
+type QueryValue = string | number | boolean | null | undefined
+type QueryParams = Record<string, QueryValue | QueryValue[]>
+
+function createSearchParams(filters?: QueryParams): URLSearchParams {
+  const params = new URLSearchParams()
+
+  if (!filters) return params
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined && item !== null && item !== '') {
+          params.append(key, String(item))
+        }
+      })
+      return
+    }
+
+    params.append(key, String(value))
+  })
+
+  return params
+}
 
 /**
  * API Client for making requests to backend
@@ -11,10 +38,8 @@ export async function apiRequest(
 ): Promise<Response> {
   const url = `${API_URL}${endpoint}`
 
-  // Get token directly from NextAuth session
-  let token: string | null = null
-  const session = await getSession()
-  token = (session as any)?.accessToken || null
+  const session = await getAuthSession()
+  const token = session?.accessToken || null
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -83,7 +108,7 @@ export const api = {
   // Projects methods
   projects: {
     getAll: (filters?: { status?: string }) => {
-      const params = new URLSearchParams(filters as any)
+      const params = createSearchParams(filters)
       return apiRequest(`/api/projects${params.toString() ? `?${params.toString()}` : ''}`)
     },
     getById: (id: string) => apiRequest(`/api/projects/${id}`),
@@ -139,7 +164,7 @@ export const api = {
       endDate?: string
       limit?: number
     }) => {
-      const params = new URLSearchParams(filters as any)
+      const params = createSearchParams(filters)
       return apiRequest(`/api/transactions${params.toString() ? `?${params.toString()}` : ''}`)
     },
     getById: (id: string) => apiRequest(`/api/transactions/${id}`),
@@ -170,15 +195,15 @@ export const api = {
       startDate?: string
       endDate?: string
     }) => {
-      const params = new URLSearchParams(filters as any)
+      const params = createSearchParams(filters)
       return apiRequest(`/api/transactions/summary/stats${params.toString() ? `?${params.toString()}` : ''}`)
     },
   },
 
   // Skills methods
   skills: {
-    getAll: (filters?: { category?: string }) => {
-      const params = new URLSearchParams(filters as any)
+    getAll: (filters?: { category?: string; q?: string }) => {
+      const params = createSearchParams(filters)
       return apiRequest(`/api/skills${params.toString() ? `?${params.toString()}` : ''}`)
     },
     getById: (id: string) => apiRequest(`/api/skills/${id}`),
@@ -207,7 +232,7 @@ export const api = {
       difficulty?: 'easy' | 'medium' | 'hard'
       category?: string
     }) => {
-      const params = new URLSearchParams(filters as any)
+      const params = createSearchParams(filters)
       return apiRequest(`/api/ideas${params.toString() ? `?${params.toString()}` : ''}`)
     },
     getById: (id: string) => apiRequest(`/api/ideas/${id}`),

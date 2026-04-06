@@ -1,14 +1,19 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle, Home, ArrowLeft } from 'lucide-react'
 
-export default function AuthError() {
+function AuthErrorContent() {
   const searchParams = useSearchParams()
-  const error = searchParams.get('error')
+
+  return <AuthErrorView error={searchParams.get('error')} />
+}
+
+function AuthErrorView({ error }: { error: string | null }) {
 
   const getErrorMessage = (errorCode: string | null) => {
     switch (errorCode) {
@@ -100,5 +105,13 @@ export default function AuthError() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function AuthError() {
+  return (
+    <Suspense fallback={<AuthErrorView error={null} />}>
+      <AuthErrorContent />
+    </Suspense>
   )
 }

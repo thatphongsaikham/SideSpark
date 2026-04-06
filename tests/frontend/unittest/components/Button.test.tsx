@@ -1,8 +1,8 @@
+/** @jsxImportSource @/test-utils */
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
 import { Button } from '@/components/ui/button'
-import '@testing-library/jest-dom'
 
 describe('Button Component', () => {
   it('renders button with text', () => {

@@ -1,27 +1,30 @@
 services:
-  # Frontend Service (Next.js)
   - type: web
     name: sidespark-frontend
     env: node
-    buildCommand: cd frontend && pnpm install --frozen-lockfile && pnpm build
-    startCommand: cd frontend && pnpm start
+    rootDir: frontend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm start
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NEXTAUTH_URL
+        value: https://sidespark-frontend.onrender.com
+      - key: NEXTAUTH_SECRET
+        generateValue: true
       - key: NEXT_PUBLIC_API_URL
         value: https://sidespark-backend.onrender.com
 
-  # Backend Service (Express + Prisma)
   - type: web
     name: sidespark-backend
     env: node
-    buildCommand: cd backend && pnpm install --frozen-lockfile && pnpm build && npx prisma generate
-    startCommand: cd backend && pnpm start
+    rootDir: backend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    preDeployCommand: pnpm exec prisma migrate deploy
+    startCommand: pnpm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 5000
       - key: DATABASE_URL
         fromDatabase:
           name: sidespark-db
@@ -30,8 +33,13 @@ services:
         value: https://sidespark-frontend.onrender.com
       - key: JWT_SECRET
         generateValue: true
+      - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 1h
+      - key: REFRESH_TOKEN_EXPIRES_IN
+        value: 7d
 
-# PostgreSQL Database
 databases:
   - name: sidespark-db
     databaseName: sidespark

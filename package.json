@@ -2,14 +2,23 @@
   "name": "sidespark",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=18.18.0"
+  },
   "scripts": {
     "dev": "concurrently \"pnpm --filter frontend dev\" \"pnpm --filter backend dev\"",
     "build": "pnpm --filter frontend build && pnpm --filter backend build",
     "start": "concurrently \"pnpm --filter frontend start\" \"pnpm --filter backend start\"",
     "lint": "pnpm --filter frontend lint && pnpm --filter backend lint",
-    "prisma:generate": "pnpm --filter backend prisma generate",
-    "prisma:migrate": "pnpm --filter backend prisma migrate dev",
-    "prisma:studio": "pnpm --filter backend prisma studio"
+    "test": "pnpm test:frontend && pnpm test:backend",
+    "test:frontend": "vitest --config frontend/vitest.config.ts --run",
+    "test:backend": "pnpm --filter backend run test:run",
+    "test:coverage": "pnpm test:coverage:frontend && pnpm test:coverage:backend",
+    "test:coverage:frontend": "pnpm --filter frontend run test:coverage",
+    "test:coverage:backend": "pnpm --filter backend run test:coverage",
+    "prisma:generate": "pnpm --filter backend run prisma:generate",
+    "prisma:migrate": "pnpm --filter backend run prisma:migrate",
+    "prisma:studio": "pnpm --filter backend run prisma:studio"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

@@ -1,152 +1,204 @@
 # SideSpark
-แอปที่ช่วยให้นักศึกษาไทยหาไอเดีย side hustle วางแผนเล็กๆ ทดลองโปรเจกต์ และติดตามรายได้เสริมอย่างเป็นระบบ
+
+SideSpark คือเว็บแอปสำหรับช่วยผู้ใช้สำรวจไอเดีย side hustle, จัดการโปรเจกต์, และติดตามรายรับรายจ่าย โดยแยกโค้ดเป็น `frontend` และ `backend` ภายใน `pnpm` workspace เดียว
 
 ## Tech Stack
 
-- **Frontend:** Next.js 14 + shadcn/ui + Tailwind CSS
-- **Backend:** Express.js + TypeScript
-- **Database:** PostgreSQL + Prisma ORM
-- **Deployment:** Render
+- Frontend: Next.js 14, React 18, Tailwind CSS, NextAuth v4
+- Backend: Express.js, TypeScript, Prisma ORM, PostgreSQL, JWT
+- Tooling: pnpm workspace, Vitest
+- Deployment:
+  - แนะนำ: `frontend` บน Vercel และ `backend + PostgreSQL` บน Render
+  - รองรับ: deploy ทั้งระบบบน Render ผ่าน [`render.yaml`](render.yaml)
 
 ## Project Structure
 
-```
+```text
 SideSpark/
-├── frontend/           # Next.js + shadcn/ui
-│   ├── src/
-│   │   ├── app/        # Next.js App Router
-│   │   ├── components/ # React components
-│   │   └── lib/        # Utilities
-│   ├── package.json
-│   └── ...
-├── backend/            # Express + Prisma
-│   ├── src/
-│   │   ├── routes/     # API routes
-│   │   └── lib/        # Prisma client
-│   ├── prisma/
-│   │   └── schema.prisma
-│   ├── package.json
-│   └── ...
-├── package.json        # Root workspace
-├── pnpm-workspace.yaml
-└── render.yaml         # Render deployment config
+|-- backend/               # Express API + Prisma schema + scripts
+|-- frontend/              # Next.js frontend
+|-- docs/                  # เอกสารแยกตามหัวข้อ
+|-- tests/                 # ชุดทดสอบ frontend/backend
+|-- package.json           # root workspace scripts
+|-- pnpm-workspace.yaml
+|-- render.yaml            # Render Blueprint
+`-- vitest.config.ts
 ```
 
-## Getting Started
+## Local Development
 
 ### Prerequisites
 
-- Node.js 18+
-- pnpm
-- PostgreSQL database (local or cloud)
+- Node.js 18.18+ หรือใหม่กว่า
+- pnpm 8+
+- PostgreSQL
 
-### Installation
+### 1. Install dependencies
 
-1. **Install dependencies:**
 ```bash
 pnpm install
 ```
 
-2. **Set up environment variables:**
+### 2. Set environment variables
 
-   Backend ([`backend/.env`](backend/.env)):
-   ```bash
-   DATABASE_URL="postgresql://user:password@localhost:5432/sidespark?schema=public"
-   PORT=5000
-   NODE_ENV=development
-   FRONTEND_URL=http://localhost:3000
-   JWT_SECRET=your-secret-key
-   ```
+สร้างไฟล์ต่อไปนี้จาก example:
 
-3. **Initialize database:**
+- `backend/.env` จาก `backend/.env.example`
+- `frontend/.env.local` จาก `frontend/.env.local.example`
+
+ค่าหลักที่ต้องมี:
+
+Backend
+
+- `DATABASE_URL`
+- `PORT`
+- `NODE_ENV`
+- `FRONTEND_URL`
+- `JWT_SECRET`
+- `REFRESH_TOKEN_SECRET`
+- `JWT_EXPIRES_IN`
+- `REFRESH_TOKEN_EXPIRES_IN`
+
+Frontend
+
+- `NEXTAUTH_URL`
+- `NEXTAUTH_SECRET`
+- `NEXT_PUBLIC_API_URL`
+
+### 3. Prepare database
+
 ```bash
-# Generate Prisma client
 pnpm prisma:generate
-
-# Run migrations
 pnpm prisma:migrate
-
-# (Optional) Seed database with initial data
-cd backend && pnpm prisma:seed
+pnpm --filter backend run prisma:seed
 ```
 
-4. **Run development servers:**
+### 4. Start development servers
+
 ```bash
-# Run both frontend and backend
 pnpm dev
-
-# Or run separately:
-cd frontend && pnpm dev      # Frontend on http://localhost:3000
-cd backend && pnpm dev       # Backend on http://localhost:5000
 ```
 
-## API Endpoints
+URL ระหว่างพัฒนา:
 
-### Health
-- `GET /health` - Health check
-- `GET /` - API info
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:5000`
 
-### Skills
-- `GET /api/skills` - Get all skills
-- `GET /api/skills/:id` - Get skill by ID
+## Common Commands
 
-### Ideas
-- `GET /api/ideas` - Get side hustle ideas (filter by skills)
-- `GET /api/ideas/:id` - Get idea by ID with steps
+```bash
+pnpm dev
+pnpm build
+pnpm start
+pnpm test
+pnpm test:frontend
+pnpm test:backend
+pnpm test:coverage
+```
 
-### Projects
-- `GET /api/projects` - Get all projects
-- `GET /api/projects/:id` - Get project by ID
-- `POST /api/projects` - Create new project
-- `PUT /api/projects/:id` - Update project
-- `DELETE /api/projects/:id` - Delete project
+## API Overview
 
-### Transactions
-- `GET /api/transactions` - Get all transactions
-- `GET /api/transactions/:id` - Get transaction by ID
-- `POST /api/transactions` - Create new transaction
-- `GET /api/transactions/summary/stats` - Get summary statistics
+Health endpoints:
 
-### Users
-- `GET /api/users/:id` - Get user profile
-- `PUT /api/users/:id` - Update user profile
-- `POST /api/users/:id/skills` - Add skill to user
-- `DELETE /api/users/:id/skills/:skillId` - Remove skill from user
+- `GET /`
+- `GET /health`
 
-## Deployment to Render
+Resource groups:
 
-1. **Push your code to GitHub**
+- `/api/auth`
+- `/api/skills`
+- `/api/ideas`
+- `/api/projects`
+- `/api/transactions`
+- `/api/users`
 
-2. **Create a Render account:** https://render.com
+## Deployment
 
-3. **Create services:**
-   - Create a new "Web Service" for frontend
-   - Create a new "Web Service" for backend
-   - Create a new "PostgreSQL" database
+### Recommended Architecture
 
-4. **Configure environment variables in Render:**
-   - Set `DATABASE_URL` from the database connection
-   - Set other required env vars from `.env.example`
+- Vercel: `frontend`
+- Render: `backend`
+- Render PostgreSQL: database
 
-5. **Deploy:** Render will automatically deploy when you push to GitHub
+ลำดับ deploy ที่แนะนำ:
 
-## Development
+1. Deploy PostgreSQL และ `backend` บน Render ก่อน
+2. คัดลอก backend URL ไปตั้งเป็น `NEXT_PUBLIC_API_URL` ใน Vercel
+3. Deploy `frontend` บน Vercel
+4. คัดลอก frontend production URL จาก Vercel กลับไปตั้งเป็น `FRONTEND_URL` ใน Render
+5. ตรวจสอบว่า login, session, และ API เรียกข้ามโดเมนได้จริง
 
-### Adding new API endpoints:
+### Deploy Frontend on Vercel
 
-1. Create route file in [`backend/src/routes/`](backend/src/routes/)
-2. Register in [`backend/src/routes/index.ts`](backend/src/routes/index.ts)
+ตั้งค่าโปรเจกต์ใน Vercel ดังนี้:
 
-### Adding new Prisma models:
+- Framework Preset: `Next.js`
+- Root Directory: `frontend`
+- Package Manager: `pnpm`
 
-1. Update [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma)
-2. Run migration: `pnpm prisma:migrate`
-3. Regenerate client: `pnpm prisma:generate`
+Environment Variables:
 
-### Frontend development:
+- `NEXTAUTH_URL=https://<your-vercel-domain>`
+- `NEXTAUTH_SECRET=<random-secret>`
+- `NEXT_PUBLIC_API_URL=https://<your-render-backend-domain>`
 
-- Pages: Add to [`frontend/src/app/`](frontend/src/app/)
-- Components: Add to [`frontend/src/components/`](frontend/src/components/)
+### Deploy Backend on Render
+
+ถ้าสร้าง service เองแบบ manual:
+
+- Service Type: `Web Service`
+- Root Directory: `backend`
+- Build Command: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
+- Pre-Deploy Command: `pnpm exec prisma migrate deploy`
+- Start Command: `pnpm start`
+
+Environment Variables:
+
+- `NODE_ENV=production`
+- `DATABASE_URL=<render-postgres-connection-string>`
+- `FRONTEND_URL=https://<your-vercel-domain>`
+- `JWT_SECRET=<random-secret>`
+- `REFRESH_TOKEN_SECRET=<random-secret>`
+- `JWT_EXPIRES_IN=1h`
+- `REFRESH_TOKEN_EXPIRES_IN=7d`
+
+ถ้าต้องเปิด CORS ให้หลายโดเมน เช่น Vercel preview deployments:
+
+- `FRONTEND_URLS=https://preview-1.vercel.app,https://preview-2.vercel.app`
+
+### Deploy Both Services on Render
+
+repo นี้มี [`render.yaml`](render.yaml) สำหรับ deploy ทั้ง `frontend`, `backend`, และ PostgreSQL บน Render อยู่แล้ว
+
+วิธีใช้งาน:
+
+1. Push code ขึ้น Git provider
+2. ไปที่ Render แล้วเลือก Blueprint deploy
+3. ชี้มาที่ repository นี้
+4. Review ค่าใน `render.yaml`
+5. เปลี่ยน domain/env ตามของจริงก่อนกด deploy
+
+### Deployment Checklist
+
+- `NEXTAUTH_URL` เป็น production URL ของ frontend จริง
+- `NEXT_PUBLIC_API_URL` ชี้ไป backend จริง
+- `FRONTEND_URL` ฝั่ง backend ตรงกับ frontend domain จริง
+- `DATABASE_URL` เป็น production database
+- `prisma migrate deploy` ถูกรันก่อน backend start
+- `https://<backend-domain>/health` ตอบกลับได้
+
+## Documentation
+
+- [Frontend Docs](docs/frontend.md)
+- [Backend Docs](docs/backend.md)
+- [Deployment Overview](docs/deployment.md)
+- [Render Deployment Guide](docs/render-deployment.md)
+
+## Known Gaps
+
+- flow บางส่วนในหน้า upgrade/checkout ยังเป็น UI prototype
+- helper บางตัวใน frontend ยังอ้างถึง route ที่ backend ยังไม่ได้เปิดใช้จริง
+- ยังมี lint warnings บางจุดที่ไม่ block deployment
 
 ## License
 

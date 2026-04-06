@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,19 +10,22 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Loader2, Mail, Lock, AlertCircle } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 
-export default function LoginPage() {
-  const router = useRouter()
+function LoginPageContent() {
   const searchParams = useSearchParams()
+  const registered = searchParams.get('registered')
+  // รับค่า callbackUrl หรือ redirect ถ้าไม่มีให้กลับไปหน้าแรก '/'
+  const redirectUrl = searchParams.get('callbackUrl') || searchParams.get('redirect') || '/'
+
+  return <LoginPageView registered={registered} redirectUrl={redirectUrl} />
+}
+
+function LoginPageView({ registered, redirectUrl }: { registered: string | null, redirectUrl: string }) {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
-
-  // Check for flags in URL
-  const urlError = searchParams.get('error')
-  const registered = searchParams.get('registered')
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -51,9 +54,10 @@ export default function LoginPage() {
           setErrors({ general: result.error })
         }
       } else if (result?.ok) {
-        router.push('/dashboard')
+        // เมื่อสำเร็จ ให้ไปที่ URL ที่ตั้งใจไว้แต่แรก
+        window.location.href = redirectUrl;
       }
-    } catch (error) {
+    } catch {
       setErrors({ general: 'เกิดข้อผิดพลาด กรุณาลองใหม่' })
     } finally {
       setLoading(false)
@@ -158,12 +162,24 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
             ยังไม่มีบัญชี?{' '}
-            <Link href="/register" className="text-[#8A2BE2] hover:underline font-medium">
+            {/* ส่ง callbackUrl ต่อไปให้หน้าสมัครสมาชิก เผื่อเขาเปลี่ยนใจไปสมัครแทน */}
+            <Link 
+              href={`/register${redirectUrl !== '/' ? `?callbackUrl=${encodeURIComponent(redirectUrl)}` : ''}`} 
+              className="text-[#8A2BE2] hover:underline font-medium"
+            >
               สมัครสมาชิก
             </Link>
           </p>
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPageView registered={null} redirectUrl="/" />}>
+      <LoginPageContent />
+    </Suspense>
   )
 }

@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma'
 import { authMiddleware } from '../middleware/auth'
 
 const router = express.Router()
+type TransactionParams = { id: string }
 
 // Apply auth middleware to all routes
 router.use(authMiddleware)
@@ -55,7 +56,7 @@ router.get('/', async (req: Request, res: Response) => {
 })
 
 // GET /api/transactions/:id - Get single transaction
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request<TransactionParams>, res: Response) => {
   try {
     const { id } = req.params
     const { userId } = req.user!
@@ -139,7 +140,7 @@ router.post('/', async (req: Request, res: Response) => {
 })
 
 // PUT /api/transactions/:id - Update transaction
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', async (req: Request<TransactionParams>, res: Response) => {
   try {
     const { id } = req.params
     const { userId } = req.user!
@@ -201,7 +202,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 })
 
 // DELETE /api/transactions/:id - Delete transaction
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request<TransactionParams>, res: Response) => {
   try {
     const { id } = req.params
     const { userId } = req.user!

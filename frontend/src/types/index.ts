@@ -58,9 +58,18 @@ export interface Skill {
   category: string | null
 }
 
+export interface SearchableSkill extends Skill {
+  isSelected: boolean
+}
+
 export interface UserSkill extends Skill {
   userSkillId: string
   addedAt: Date
+}
+
+export interface SkillSearchResponse {
+  skills: SearchableSkill[]
+  userSkills: UserSkill[]
 }
 
 export interface Idea {
@@ -78,6 +87,12 @@ export interface Idea {
   requiredTools: string[]
   resources: string[]
   steps?: string[]
+}
+
+export interface IdeaRecommendation extends Idea {
+  matchedSkills: string[]
+  matchCount: number
+  recommendationSource: 'query' | 'saved-skills' | 'all'
 }
 
 export interface Milestone {
