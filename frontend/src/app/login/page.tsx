@@ -13,8 +13,9 @@ import { signIn } from 'next-auth/react'
 function LoginPageContent() {
   const searchParams = useSearchParams()
   const registered = searchParams.get('registered')
-  // รับค่า callbackUrl หรือ redirect ถ้าไม่มีให้กลับไปหน้าแรก '/'
-  const redirectUrl = searchParams.get('callbackUrl') || searchParams.get('redirect') || '/'
+  // รับค่า callbackUrl หรือ redirect ถ้าไม่มีให้ไปหน้าไอเดียหลัก '/main'
+  const rawRedirectUrl = searchParams.get('callbackUrl') || searchParams.get('redirect') || '/main'
+  const redirectUrl = rawRedirectUrl.startsWith('/') ? rawRedirectUrl : '/main'
 
   return <LoginPageView registered={registered} redirectUrl={redirectUrl} />
 }
@@ -164,7 +165,7 @@ function LoginPageView({ registered, redirectUrl }: { registered: string | null,
             ยังไม่มีบัญชี?{' '}
             {/* ส่ง callbackUrl ต่อไปให้หน้าสมัครสมาชิก เผื่อเขาเปลี่ยนใจไปสมัครแทน */}
             <Link 
-              href={`/register${redirectUrl !== '/' ? `?callbackUrl=${encodeURIComponent(redirectUrl)}` : ''}`} 
+              href={`/register${redirectUrl !== '/main' ? `?callbackUrl=${encodeURIComponent(redirectUrl)}` : ''}`} 
               className="text-[#8A2BE2] hover:underline font-medium"
             >
               สมัครสมาชิก
@@ -178,7 +179,7 @@ function LoginPageView({ registered, redirectUrl }: { registered: string | null,
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<LoginPageView registered={null} redirectUrl="/" />}>
+    <Suspense fallback={<LoginPageView registered={null} redirectUrl="/main" />}>
       <LoginPageContent />
     </Suspense>
   )

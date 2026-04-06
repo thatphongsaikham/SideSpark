@@ -13,13 +13,13 @@ export async function middleware(req: NextRequest) {
 
   // 2. Logic: ถ้า Login แล้ว และอยู่ที่หน้า Root ('/')
   if (path === "/" && session) {
-    // ทำการ Rewrite ไปที่โฟลเดอร์ /main (User จะยังเห็น URL เป็น / เหมือนเดิม)
-    return NextResponse.rewrite(new URL("/main", req.url));
+    // ส่งผู้ใช้ไปหน้าไอเดียหลักให้ชัดเจน
+    return NextResponse.redirect(new URL("/main", req.url));
   }
 
   // 3. กันเหนียว: ถ้าพยายามเข้าหน้า /login ทั้งที่ Login แล้ว ให้ส่งไปหน้าแรก
   if (path === "/login" && session) {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL("/main", req.url));
   }
 
   return NextResponse.next();
