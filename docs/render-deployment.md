@@ -50,8 +50,7 @@ Frontend service:
 Backend service:
 
 - Root Directory: `backend`
-- Build Command: `pnpm install --frozen-lockfile --prod=false && pnpm build`
-- Pre-Deploy Command: `pnpm exec prisma migrate deploy`
+- Build Command: `pnpm install --frozen-lockfile --prod=false && pnpm exec prisma migrate deploy && pnpm build`
 - Start Command: `pnpm start`
 - Node Version: `20` (recommended) หรือ `22`
 
@@ -97,14 +96,9 @@ Backend:
 
 - Root Directory: `backend`
 - Environment: `Node`
-- Build Command (recommended เมื่อ Render ไม่มี Pre-Deploy): `pnpm install --frozen-lockfile --prod=false && pnpm exec prisma migrate deploy && pnpm build`
+- Build Command: `pnpm install --frozen-lockfile --prod=false && pnpm exec prisma migrate deploy && pnpm build`
 - Start Command: `pnpm start`
 - Node Version: `20` (recommended) หรือ `22`
-
-Optional (ถ้ามี Pre-Deploy Command):
-
-- Build Command: `pnpm install --frozen-lockfile --prod=false && pnpm build`
-- Pre-Deploy Command: `pnpm exec prisma migrate deploy`
 
 Environment Variables:
 
@@ -157,7 +151,7 @@ Environment Variables:
 
 - เปิด `https://<backend-domain>/health` แล้วต้องได้ JSON response
 - logs ต้องไม่ขึ้น error เรื่อง `FRONTEND_URL`, `JWT_SECRET`, หรือ `DATABASE_URL`
-- migration ต้องรันผ่านก่อน backend start (ผ่าน Pre-Deploy หรือ Build Command)
+- migration ต้องรันผ่านก่อน backend start (ผ่าน Build Command)
 
 ### Frontend
 
@@ -181,13 +175,6 @@ Environment Variables:
 - ตั้ง Node Version เป็น `20` หรือ `22`
 - redeploy ใหม่พร้อม clear build cache
 
-### Render UI has no Pre-Deploy command
-
-ใช้ค่าต่อไปนี้แทน:
-
-- Build Command: `pnpm install --frozen-lockfile --prod=false && pnpm exec prisma migrate deploy && pnpm build`
-- Start Command: `pnpm start`
-
 ### Backend starts but frontend calls fail
 
 ตรวจสอบ:
@@ -210,7 +197,7 @@ Environment Variables:
 ตรวจสอบว่า backend service มี:
 
 - `DATABASE_URL`
-- คำสั่ง `pnpm exec prisma migrate deploy` อยู่ใน Pre-Deploy หรือ Build Command
+- คำสั่ง `pnpm exec prisma migrate deploy` อยู่ใน Build Command
 
 ## Related Files
 
