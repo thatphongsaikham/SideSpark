@@ -4,6 +4,7 @@ import { getToken } from "next-auth/jwt";
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  const searchParams = req.nextUrl.searchParams;
 
   // 1. ตรวจสอบ Session จาก Cookie ของ NextAuth
   const session = await getToken({
@@ -20,6 +21,18 @@ export async function middleware(req: NextRequest) {
   // 3. กันเหนียว: ถ้าพยายามเข้าหน้า /login ทั้งที่ Login แล้ว ให้ส่งไปหน้าแรก
   if (path === "/login" && session) {
     return NextResponse.redirect(new URL("/main", req.url));
+  }
+
+  // 4. ถ้าเข้าหน้า /login แบบไม่มีเป้าหมายปลายทาง ให้เติม redirect=/main
+  if (path === "/login" && !session) {
+    const hasRedirectTarget =
+      searchParams.has("redirect") || searchParams.has("callbackUrl");
+
+    if (!hasRedirectTarget) {
+      const loginUrl = req.nextUrl.clone();
+      loginUrl.searchParams.set("redirect", "/main");
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
   return NextResponse.next();

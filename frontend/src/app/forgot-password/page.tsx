@@ -21,7 +21,7 @@ export default function ForgotPasswordPage() {
           </p>
 
           <Button asChild className="w-full bg-[#8A2BE2] hover:bg-[#8A2BE2]/90">
-            <Link href="/login">กลับไปหน้าเข้าสู่ระบบ</Link>
+            <Link href="/login?redirect=%2Fmain">กลับไปหน้าเข้าสู่ระบบ</Link>
           </Button>
         </CardContent>
       </Card>

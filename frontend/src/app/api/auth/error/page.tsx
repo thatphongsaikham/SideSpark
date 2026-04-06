@@ -91,7 +91,7 @@ function AuthErrorView({ error }: { error: string | null }) {
           </div>
 
           <div className="space-y-3">
-            <Link href="/login" className="block">
+            <Link href="/login?redirect=%2Fmain" className="block">
               <Button variant="outline" className="w-full h-12">
                 ไปหน้าเข้าสู่ระบบ
               </Button>

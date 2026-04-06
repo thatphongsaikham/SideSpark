@@ -14,7 +14,7 @@ export default function Navbar() {
           />
         </div>
         <div className="flex gap-3">
-          <Link href="/login">
+          <Link href="/login?redirect=%2Fmain">
             <Button variant="ghost" className="hover:text-[#8A2BE2] font-medium transition-colors">
               เข้าสู่ระบบ
             </Button>
