@@ -64,13 +64,20 @@ export default function LoginPageClient({ registered, redirectUrl }: LoginPageCl
           setErrors({ general: result.error })
         }
       } else if (result?.ok) {
-        const finalUrl = result.url
-          ? (() => {
-              const parsedUrl = new URL(result.url, window.location.origin)
-              const pathWithQuery = `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
-              return normalizeRedirectPath(pathWithQuery)
-            })()
-          : redirectUrl
+        let finalUrl = redirectUrl
+
+        if (result.url) {
+          try {
+            const parsedUrl = new URL(result.url, window.location.origin)
+            const path = parsedUrl.pathname
+            // Only use result.url if it's a real app path, not an internal NextAuth route
+            if (path && !path.startsWith('/api/auth') && path !== '/login' && path !== '/register') {
+              finalUrl = `${path}${parsedUrl.search}${parsedUrl.hash}`
+            }
+          } catch {
+            // URL parsing failed, keep using redirectUrl
+          }
+        }
 
         window.location.assign(finalUrl)
       }
