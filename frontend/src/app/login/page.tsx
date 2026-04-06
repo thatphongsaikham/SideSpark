@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import LoginPageClient from './LoginPageClient'
 
 function pickFirst(value: string | string[] | undefined): string | null {
@@ -31,6 +32,11 @@ type LoginPageProps = {
 export default function LoginPage({ searchParams }: LoginPageProps) {
   const registered = pickFirst(searchParams?.registered)
   const rawRedirectUrl = pickFirst(searchParams?.callbackUrl) || pickFirst(searchParams?.redirect)
+
+  if (!rawRedirectUrl) {
+    redirect('/login?redirect=%2Fmain')
+  }
+
   const redirectUrl = normalizeRedirectPath(rawRedirectUrl)
 
   return <LoginPageClient registered={registered} redirectUrl={redirectUrl} />
