@@ -14,6 +14,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "SideSpark - เริ่มต้น Side Hustle อย่างมั่นใจ",
   description: "แอปที่ช่วยให้นักศึกษาไทยหาไอเดีย side hustle วางแผนโปรเดกต์ และติดตามรายได้เสริมอย่างเป็นระบบ",
+  icons: {
+    icon: '/images/logo.jpg',
+    shortcut: '/images/logo.jpg',
+    apple: '/images/logo.jpg',
+  },
 }
 
 export default function RootLayout({
