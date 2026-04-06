@@ -43,15 +43,17 @@
 Frontend service:
 
 - Root Directory: `frontend`
-- Build Command: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
+- Build Command: `pnpm install --frozen-lockfile --prod=false && pnpm build`
 - Start Command: `pnpm start`
+- Node Version: `20` (recommended) หรือ `22`
 
 Backend service:
 
 - Root Directory: `backend`
-- Build Command: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
+- Build Command: `pnpm install --frozen-lockfile --prod=false && pnpm build`
 - Pre-Deploy Command: `pnpm exec prisma migrate deploy`
 - Start Command: `pnpm start`
+- Node Version: `20` (recommended) หรือ `22`
 
 ### Environment Variables Used by the Blueprint
 
@@ -95,9 +97,14 @@ Backend:
 
 - Root Directory: `backend`
 - Environment: `Node`
-- Build Command: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
-- Pre-Deploy Command: `pnpm exec prisma migrate deploy`
+- Build Command (recommended เมื่อ Render ไม่มี Pre-Deploy): `pnpm install --frozen-lockfile --prod=false && pnpm exec prisma migrate deploy && pnpm build`
 - Start Command: `pnpm start`
+- Node Version: `20` (recommended) หรือ `22`
+
+Optional (ถ้ามี Pre-Deploy Command):
+
+- Build Command: `pnpm install --frozen-lockfile --prod=false && pnpm build`
+- Pre-Deploy Command: `pnpm exec prisma migrate deploy`
 
 Environment Variables:
 
@@ -121,8 +128,9 @@ Optional:
 
 - Root Directory: `frontend`
 - Environment: `Node`
-- Build Command: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
+- Build Command: `pnpm install --frozen-lockfile --prod=false && pnpm build`
 - Start Command: `pnpm start`
+- Node Version: `20` (recommended) หรือ `22`
 
 Environment Variables:
 
@@ -149,7 +157,7 @@ Environment Variables:
 
 - เปิด `https://<backend-domain>/health` แล้วต้องได้ JSON response
 - logs ต้องไม่ขึ้น error เรื่อง `FRONTEND_URL`, `JWT_SECRET`, หรือ `DATABASE_URL`
-- migration ต้องรันผ่านใน pre-deploy phase
+- migration ต้องรันผ่านก่อน backend start (ผ่าน Pre-Deploy หรือ Build Command)
 
 ### Frontend
 
@@ -163,6 +171,22 @@ Environment Variables:
 ### Build fails because of package manager mismatch
 
 ตรวจสอบว่า Render ใช้ `pnpm` ตามคำสั่ง build ที่กำหนดไว้ และ repository มี `pnpm-lock.yaml`
+
+### Build fails with `EROFS: read-only file system, unlink '/usr/bin/pnpm'`
+
+ตรวจสอบ:
+
+- ไม่มี `corepack enable` ใน Build Command
+- ใช้คำสั่ง `pnpm ...` โดยตรง
+- ตั้ง Node Version เป็น `20` หรือ `22`
+- redeploy ใหม่พร้อม clear build cache
+
+### Render UI has no Pre-Deploy command
+
+ใช้ค่าต่อไปนี้แทน:
+
+- Build Command: `pnpm install --frozen-lockfile --prod=false && pnpm exec prisma migrate deploy && pnpm build`
+- Start Command: `pnpm start`
 
 ### Backend starts but frontend calls fail
 
@@ -186,7 +210,7 @@ Environment Variables:
 ตรวจสอบว่า backend service มี:
 
 - `DATABASE_URL`
-- `preDeployCommand: pnpm exec prisma migrate deploy`
+- คำสั่ง `pnpm exec prisma migrate deploy` อยู่ใน Pre-Deploy หรือ Build Command
 
 ## Related Files
 

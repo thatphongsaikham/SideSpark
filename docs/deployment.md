@@ -67,15 +67,21 @@
 ### Frontend
 
 - Root Directory: `frontend`
-- Build: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
+- Build: `pnpm install --frozen-lockfile --prod=false && pnpm build`
 - Start: `pnpm start`
+- Node Version: `20` (recommended) หรือ `22`
 
 ### Backend
 
 - Root Directory: `backend`
-- Build: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
-- Pre-Deploy: `pnpm exec prisma migrate deploy`
+- Build (recommended เมื่อ Render ไม่มี Pre-Deploy): `pnpm install --frozen-lockfile --prod=false && pnpm exec prisma migrate deploy && pnpm build`
 - Start: `pnpm start`
+- Node Version: `20` (recommended) หรือ `22`
+
+Optional (ถ้ามี Pre-Deploy):
+
+- Build: `pnpm install --frozen-lockfile --prod=false && pnpm build`
+- Pre-Deploy: `pnpm exec prisma migrate deploy`
 
 ## Important Environment Variables
 
