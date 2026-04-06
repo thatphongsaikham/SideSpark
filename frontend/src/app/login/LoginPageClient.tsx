@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Loader2, Mail, Lock, AlertCircle } from 'lucide-react'
-import { signIn } from 'next-auth/react'
+import { getSession, signIn } from 'next-auth/react'
 
 type LoginPageClientProps = {
   registered: string | null
@@ -21,6 +21,33 @@ export default function LoginPageClient({ registered, redirectUrl }: LoginPageCl
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+
+  const saveLoginDebug = (payload: Record<string, unknown>) => {
+    if (typeof window === 'undefined') return
+
+    sessionStorage.setItem(
+      'login-debug',
+      JSON.stringify({
+        ...payload,
+        redirectUrl,
+        at: new Date().toISOString(),
+      }),
+    )
+  }
+
+  const waitForSession = async (maxAttempts = 8, intervalMs = 150) => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const session = await getSession()
+
+      if (session?.user) {
+        return { session, attempt }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    }
+
+    return { session: null, attempt: maxAttempts }
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -46,14 +73,31 @@ export default function LoginPageClient({ registered, redirectUrl }: LoginPageCl
       console.log('[Login] signIn result:', JSON.stringify(result))
 
       if (result?.error) {
+        saveLoginDebug({ stage: 'signIn-error', result })
+
         if (result.error === 'CredentialsSignin') {
           setErrors({ general: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' })
         } else {
           setErrors({ general: result.error })
         }
       } else if (result?.ok) {
+        const { session, attempt } = await waitForSession()
+
+        saveLoginDebug({
+          stage: 'signIn-ok',
+          result,
+          sessionReady: Boolean(session?.user),
+          attempt,
+        })
+
         console.log('[Login] Success, redirecting to:', redirectUrl, 'result.url:', result.url)
-        window.location.href = redirectUrl
+
+        if (!session?.user) {
+          setErrors({ general: 'เข้าสู่ระบบสำเร็จ แต่ session ยังไม่พร้อม กรุณาลองใหม่อีกครั้ง' })
+          return
+        }
+
+        window.location.assign(redirectUrl)
       }
     } catch {
       setErrors({ general: 'เกิดข้อผิดพลาด กรุณาลองใหม่' })
