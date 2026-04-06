@@ -9,20 +9,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Loader2, Mail, Lock, AlertCircle } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 
-function normalizeRedirectPath(path: string | null): string {
-  if (!path) return '/main'
-
-  if (!path.startsWith('/')) return '/main'
-
-  const pathname = path.split(/[?#]/)[0]
-
-  if (pathname === '/' || pathname === '/login' || pathname === '/register') {
-    return '/main'
-  }
-
-  return path
-}
-
 type LoginPageClientProps = {
   registered: string | null
   redirectUrl: string
