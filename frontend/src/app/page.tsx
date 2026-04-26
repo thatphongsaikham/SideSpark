@@ -3,7 +3,6 @@ import Navbar from "@/components/layout/Navbar"
 import Footer from "@/components/layout/Footer"
 import HeroSection from "@/components/home/HeroSection"
 import FeaturesSection from "@/components/home/FeaturesSection"
-import DemoSection from "@/components/home/DemoSection"
 import PricingSection from "@/components/home/PricingSection"
 
 export default function Home() {
@@ -18,7 +17,6 @@ export default function Home() {
       <main className="container mx-auto px-4 py-20 relative z-10">
         <HeroSection />
         <FeaturesSection />
-        <DemoSection />
         <PricingSection />
       </main>
 

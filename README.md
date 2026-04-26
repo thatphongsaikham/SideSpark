@@ -1,6 +1,59 @@
-# SideSpark
+## SideSpark
+ระบบสำรวจไอเดีย side hustle สำหรับนักศึกษา
 
-SideSpark คือเว็บแอปสำหรับช่วยผู้ใช้สำรวจไอเดีย side hustle, จัดการโปรเจกต์, และติดตามรายรับรายจ่าย โดยแยกโค้ดเป็น `frontend` และ `backend` ภายใน `pnpm` workspace เดียว
+**SideSpark** ช่วยนักศึกษาค้นหาไอเดียหารายได้เสริมจากทักษะของตนเอง 
+วางแผนโปรเจกต์ และติดตามรายได้อย่างเป็นระบบ
+
+## Features
+- Idea Explorer — ค้นหาไอเดีย side hustle ตามทักษะ
+- Mini Business Plan — วางแผนธุรกิจขนาดเล็กอย่างเป็นขั้นตอน
+- Income Tracker — ติดตามรายได้จากแต่ละโปรเจกต์
+- Progress Dashboard — ดูความคืบหน้าและวิเคราะห์รายได้
+
+## Vision & Goals
+
+### Problem Statement
+นักศึกษาหลายคนอยากหารายได้เสริมแต่:
+1.ไม่รู้ว่ามีทางเลือกอะไรบ้างที่เหมาะกับตัวเอง
+2.ไม่รู้จะเริ่มต้นอย่างไร
+3.ไม่มีระบบติดตามรายได้และความคืบหน้า
+
+### Solution
+แอป SideSpark ช่วยสำรวจไอเดีย side hustle ตามทักษะ วางแผนโปรเจกต์ และติดตามรายได้อย่างเป็นระบบ
+
+### Target Users
+- Primary: นักศึกษาที่อยากหารายได้เสริม
+- Secondary: คนรุ่นใหม่ที่สนใจเริ่มต้นธุรกิจเล็กๆ
+
+### Success Metrics
+| Metric                   | Target              | Current |
+|--------------------------|---------------------|---------|
+| จำนวนผู้ใช้ต่อเดือน (MAU)     | 300 users           | -       |
+| อัตรา retention (7 วัน)    | 40%                 | -       |
+| อัตรา Idea → Project (%)  | 30%                 | -       |
+| จำนวนโปรเจกต์เฉลี่ยต่อผู้ใช้    | 2 projects/user     | -       |
+| รายได้เฉลี่ยต่อผู้ใช้           | 1,000 บาท/เดือน      | -       |
+
+## Roadmap
+
+### Current Sprint (Sprint 2)
+| Task                         | Assignee | Status        |
+|------------------------------|----------|--------------|
+| พัฒนาหน้าสำรวจ                 | thatphong saikham (@thatphongsaikham)| In Progress  |
+| พัฒนาหน้าจัดการโปรเจกต์           |thatphong saikham (@thatphongsaikham)| In Progress  |
+| พัฒนาหน้าความสำเร็จ              | thatphong saikham (@thatphongsaikham)| In Progress  |
+| พัฒนาหน้าแพ็กเกจ + ชำระเงิน       | thatphong saikham (@thatphongsaikham)| In Progress  |
+| พัฒนาหน้าโปรไฟล์                | thatphong saikham (@thatphongsaikham)| In Progress  |
+| ออกแบบโครงสร้างฐานข้อมูล          | thatphong saikham (@thatphongsaikham)| In Progress  |
+| เชื่อมหน้า UI กับข้อมูลจริง          | thatphong saikham (@thatphongsaikham)| In Progress  |
+| ตั้งค่า CD                       | Premch Phaosatheanthanon (@Premch504)| In Progress  |
+| ทำ Code Review                | Premch Phaosatheanthanon (@Premch504)| In Progress  |
+| ตรวจสอบการทำงานของ CI/CD       | Premch Phaosatheanthanon (@Premch504)| In Progress  |
+
+### Milestones
+- [x] Sprint 1: Idea Explorer + Basic UI + Project Setup
+- [x] Sprint 2: Mini Business Plan + Income Tracker (Core Features)
+- [ ] Sprint 3: Progress Dashboard + UX Improvements + Documentation
 
 ## Tech Stack
 
