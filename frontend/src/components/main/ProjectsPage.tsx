@@ -1,8 +1,6 @@
-// components/main/ProjectsPage.tsx
 "use client"
-/* eslint-disable react/no-unescaped-entities */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +22,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { api, handleApiResponse } from "@/lib/api"
+import type { Project } from "@/types"
 import {
   Plus,
   FolderKanban,
@@ -31,274 +31,314 @@ import {
   ChevronRight,
   TrendingUp,
   Target,
-  Flame,
   BarChart2,
+  Loader2,
+  ListTodo,
 } from "lucide-react"
-import { Project } from "@/types/project"
 import ProjectDetail from "./ProjectDetail"
+import {
+  calcProjectExpense,
+  calcProjectIncome,
+  formatShortDate,
+  normalizeProject,
+  normalizeProjects,
+  type ProjectRecord,
+} from "./projectTypes"
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const MOCK_PROJECTS: Project[] = [
-  {
-    id: "1",
-    name: "รับทำพรีเซนต์ Canva",
-    description: "รับทำสไลด์สัมมนาและงานกลุ่มให้นักศึกษา",
-    initialCost: 0,
-    incomeGoal: 5000,
-    createdAt: "2026-03-01",
-    streak: 12,
-    todos: [
-      { id: "t1", text: "ออกแบบ Template ใหม่", done: true, createdAt: "2026-03-05" },
-      { id: "t2", text: "โพสต์โฆษณาใน Facebook Group", done: false, createdAt: "2026-03-06" },
-      { id: "t3", text: "เตรียม Portfolio", done: false, createdAt: "2026-03-07" },
-    ],
-    transactions: [
-      { id: "tx1", type: "income", label: "งาน: สไลด์สัมมนา", amount: 800, date: "2026-03-10" },
-      { id: "tx2", type: "income", label: "งาน: Pitch Deck", amount: 1500, date: "2026-03-17" },
-      { id: "tx3", type: "expense", label: "ซื้อ Canva Pro", amount: 500, date: "2026-03-01" },
-      { id: "tx4", type: "income", label: "งาน: รายงาน", amount: 600, date: "2026-03-24" },
-      { id: "tx5", type: "income", label: "งาน: สไลด์คลาส", amount: 400, date: "2026-03-31" },
-    ],
-    milestones: [
-      { id: "m1", label: "รายได้ครบ ฿1,000", targetAmount: 1000, reached: true, reachedAt: "2026-03-10" },
-      { id: "m2", label: "รายได้ครบ ฿3,000", targetAmount: 3000, reached: true, reachedAt: "2026-03-24" },
-      { id: "m3", label: "รายได้ครบ ฿5,000", targetAmount: 5000, reached: false },
-    ],
-  },
-  {
-    id: "2",
-    name: "ถ่ายรูปสินค้า Shopee",
-    description: "รับถ่ายภาพสินค้าสำหรับร้านค้าออนไลน์",
-    initialCost: 2000,
-    incomeGoal: 10000,
-    createdAt: "2026-03-10",
-    streak: 5,
-    todos: [
-      { id: "t1", text: "ซื้ออุปกรณ์พร็อพถ่ายภาพ", done: true, createdAt: "2026-03-10" },
-      { id: "t2", text: "ติดต่อร้านค้า 5 ร้าน", done: false, createdAt: "2026-03-11" },
-    ],
-    transactions: [
-      { id: "tx1", type: "expense", label: "ซื้ออุปกรณ์", amount: 2000, date: "2026-03-10" },
-      { id: "tx2", type: "income", label: "งาน: ร้าน ABC", amount: 1500, date: "2026-03-20" },
-      { id: "tx3", type: "income", label: "งาน: ร้าน XYZ", amount: 2000, date: "2026-03-27" },
-    ],
-    milestones: [
-      { id: "m1", label: "คืนทุนแล้ว", targetAmount: 2000, reached: true, reachedAt: "2026-03-20" },
-      { id: "m2", label: "รายได้ครบ ฿5,000", targetAmount: 5000, reached: false },
-    ],
-  },
-]
+function getErrorMessage(error: unknown, fallbackMessage: string): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message
+  }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function calcNetProfit(project: Project): number {
-  const totalIncome = project.transactions
-    .filter((t) => t.type === "income")
-    .reduce((sum, t) => sum + t.amount, 0)
-  const totalExpense =
-    project.initialCost +
-    project.transactions
-      .filter((t) => t.type === "expense")
-      .reduce((sum, t) => sum + t.amount, 0)
-  return totalIncome - totalExpense
+  return fallbackMessage
 }
 
-function calcTotalIncome(project: Project): number {
-  return project.transactions
-    .filter((t) => t.type === "income")
-    .reduce((sum, t) => sum + t.amount, 0)
+function getProfit(project: ProjectRecord): number {
+  return calcProjectIncome(project) - calcProjectExpense(project)
 }
 
-function goalPercent(project: Project): number {
-  if (project.incomeGoal === 0) return 0
-  return Math.min(100, Math.round((calcTotalIncome(project) / project.incomeGoal) * 100))
+function getGoalPercent(project: ProjectRecord): number {
+  if (project.monthlyGoal <= 0) return 0
+  return Math.min(100, Math.round((calcProjectIncome(project) / project.monthlyGoal) * 100))
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS)
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [projects, setProjects] = useState<ProjectRecord[]>([])
+  const [isProjectsLoading, setIsProjectsLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState<string | null>(null)
 
-  // Create form state
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [selectedProject, setSelectedProject] = useState<ProjectRecord | null>(null)
+  const [isProjectDetailLoading, setIsProjectDetailLoading] = useState(false)
+  const [projectDetailError, setProjectDetailError] = useState<string | null>(null)
+
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [isDeletingProject, setIsDeletingProject] = useState(false)
+
   const [form, setForm] = useState({
     name: "",
     description: "",
     initialCost: "",
-    incomeGoal: "",
+    monthlyGoal: "",
   })
-  const [formError, setFormError] = useState("")
 
-  const handleCreate = () => {
+  async function loadProjects() {
+    setIsProjectsLoading(true)
+
+    try {
+      const response = await api.projects.getAll()
+      const data = await handleApiResponse<Project[]>(response)
+      setProjects(normalizeProjects(data as unknown as ProjectRecord[]))
+      setProjectsError(null)
+    } catch (error) {
+      setProjects([])
+      setProjectsError(getErrorMessage(error, "โหลดโปรเจกต์ไม่สำเร็จ"))
+    } finally {
+      setIsProjectsLoading(false)
+    }
+  }
+
+  async function loadProjectDetail(projectId: string, keepDrawerOpen = true) {
+    if (keepDrawerOpen) {
+      setSelectedProjectId(projectId)
+    }
+
+    setIsProjectDetailLoading(true)
+    setProjectDetailError(null)
+
+    try {
+      const response = await api.projects.getById(projectId)
+      const data = await handleApiResponse<Project>(response)
+      setSelectedProject(normalizeProject(data))
+    } catch (error) {
+      setProjectDetailError(getErrorMessage(error, "โหลดรายละเอียดโปรเจกต์ไม่สำเร็จ"))
+    } finally {
+      setIsProjectDetailLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadProjects()
+  }, [])
+
+  const handleOpenProject = async (projectId: string) => {
+    await loadProjectDetail(projectId)
+  }
+
+  const handleCreateProject = async () => {
     if (!form.name.trim()) {
-      setFormError("กรุณากรอกชื่อโปรเจกต์")
+      setCreateError("กรุณากรอกชื่อโปรเจกต์")
       return
     }
-    const newProject: Project = {
-      id: Date.now().toString(),
-      name: form.name.trim(),
-      description: form.description.trim(),
-      initialCost: parseFloat(form.initialCost) || 0,
-      incomeGoal: parseFloat(form.incomeGoal) || 0,
-      createdAt: new Date().toISOString().split("T")[0],
-      streak: 0,
-      todos: [],
-      transactions: [],
-      milestones: [],
+
+    setIsCreatingProject(true)
+
+    try {
+      const response = await api.projects.create({
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        initialCost: parseFloat(form.initialCost) || 0,
+        monthlyGoal: parseFloat(form.monthlyGoal) || 0,
+      })
+
+      const created = await handleApiResponse<Project>(response)
+      const normalized = normalizeProject(created)
+
+      setProjects((prev) => [normalized, ...prev])
+      setForm({ name: "", description: "", initialCost: "", monthlyGoal: "" })
+      setCreateError(null)
+      setShowCreateModal(false)
+      await loadProjectDetail(normalized.id)
+      await loadProjects()
+    } catch (error) {
+      setCreateError(getErrorMessage(error, "สร้างโปรเจกต์ไม่สำเร็จ"))
+    } finally {
+      setIsCreatingProject(false)
     }
-    setProjects((prev) => [newProject, ...prev])
-    setForm({ name: "", description: "", initialCost: "", incomeGoal: "" })
-    setFormError("")
-    setShowCreateModal(false)
   }
 
-  const handleDelete = (id: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id))
-    if (selectedProject?.id === id) setSelectedProject(null)
-    setDeleteTargetId(null)
+  const handleDeleteProject = async (projectId: string) => {
+    setIsDeletingProject(true)
+
+    try {
+      const response = await api.projects.delete(projectId)
+
+      if (!response.ok) {
+        await handleApiResponse(response)
+      }
+
+      setProjects((prev) => prev.filter((project) => project.id !== projectId))
+      if (selectedProjectId === projectId) {
+        setSelectedProjectId(null)
+        setSelectedProject(null)
+      }
+      setDeleteTargetId(null)
+    } catch (error) {
+      setProjectsError(getErrorMessage(error, "ลบโปรเจกต์ไม่สำเร็จ"))
+    } finally {
+      setIsDeletingProject(false)
+    }
   }
 
-  const handleUpdateProject = (updated: Project) => {
-    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
-    setSelectedProject(updated)
+  const handleProjectChanged = async (projectId: string) => {
+    await Promise.all([loadProjects(), loadProjectDetail(projectId, false)])
   }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-
-      {/* Header Row */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-[#0F172A] dark:text-white mb-1">
-            โปรเจกต์ของฉัน 📁
+          <h1 className="mb-1 text-3xl font-bold text-[#0F172A] dark:text-white">
+            โปรเจกต์ของฉัน
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            จัดการ Side Hustle ทุกโปรเจกต์ในที่เดียว
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            จัดการงาน side hustle, task และรายรับรายจ่ายของแต่ละโปรเจกต์ในที่เดียว
           </p>
         </div>
         <Button
           onClick={() => setShowCreateModal(true)}
-          className="bg-[#7F77DD] hover:bg-[#534AB7] text-white rounded-xl shadow-sm gap-2 transition-colors"
+          className="gap-2 rounded-xl bg-[#7F77DD] text-white shadow-sm hover:bg-[#534AB7]"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="h-4 w-4" />
           สร้างโปรเจกต์
         </Button>
       </div>
 
-      {/* Empty State */}
-      {projects.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <FolderKanban className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" />
-          <p className="text-gray-400 font-medium">ยังไม่มีโปรเจกต์</p>
-          <p className="text-gray-400 text-sm mt-1">กดปุ่ม "สร้างโปรเจกต์" เพื่อเริ่มต้น</p>
+      {projectsError ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-950/30">
+          <p>{projectsError}</p>
+          <Button variant="outline" className="mt-3 rounded-xl" onClick={() => void loadProjects()}>
+            ลองใหม่
+          </Button>
         </div>
-      )}
+      ) : null}
 
-      {/* Project Grid */}
-      {projects.length > 0 && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {isProjectsLoading ? (
+        <div className="flex items-center justify-center gap-2 py-20 text-gray-400">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          กำลังโหลดโปรเจกต์...
+        </div>
+      ) : null}
+
+      {!isProjectsLoading && projects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <FolderKanban className="mb-4 h-12 w-12 text-gray-300 dark:text-gray-600" />
+          <p className="font-medium text-gray-400">ยังไม่มีโปรเจกต์</p>
+          <p className="mt-1 text-sm text-gray-400">เริ่มสร้างโปรเจกต์แรกเพื่อจัดการงานและติดตามรายได้</p>
+        </div>
+      ) : null}
+
+      {!isProjectsLoading && projects.length > 0 ? (
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => {
-            const net = calcNetProfit(project)
-            const income = calcTotalIncome(project)
-            const pct = goalPercent(project)
-            const isProfit = net >= 0
+            const income = calcProjectIncome(project)
+            const profit = getProfit(project)
+            const goalPercent = getGoalPercent(project)
+            const taskCount = project.progress?.totalTasks ?? project.tasks.length
+            const completedTasks = project.progress?.completedTasks ?? project.tasks.filter((task) => task.completed).length
 
             return (
               <Card
                 key={project.id}
-                className="group flex flex-col border-gray-200 dark:border-gray-800 hover:border-[#7F77DD]/60 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 rounded-2xl overflow-hidden cursor-pointer"
-                onClick={() => setSelectedProject(project)}
+                className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border-gray-200 transition-all duration-300 hover:-translate-y-1 hover:border-[#7F77DD]/60 hover:shadow-lg dark:border-gray-800"
+                onClick={() => void handleOpenProject(project.id)}
               >
-                <CardContent className="p-5 flex flex-col gap-4 flex-1">
-
-                  {/* Top Row: name + delete */}
+                <CardContent className="flex flex-1 flex-col gap-4 p-5">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-[#0F172A] dark:text-white text-base truncate group-hover:text-[#534AB7] dark:group-hover:text-[#AFA9EC] transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-base font-semibold text-[#0F172A] transition-colors group-hover:text-[#534AB7] dark:text-white dark:group-hover:text-[#AFA9EC]">
                         {project.name}
                       </h3>
-                      {project.description && (
-                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">
+                      {project.description ? (
+                        <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-400">
                           {project.description}
                         </p>
-                      )}
+                      ) : null}
                     </div>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation()
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
                         setDeleteTargetId(project.id)
                       }}
-                      className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      className="rounded-lg p-1.5 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
                       aria-label="ลบโปรเจกต์"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
 
-                  {/* Stats Row */}
                   <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-2.5 text-center">
-                      <p className="text-[10px] text-gray-400 mb-1 flex items-center justify-center gap-1">
-                        <TrendingUp className="w-3 h-3" /> รายได้
+                    <div className="rounded-xl bg-gray-50 p-2.5 text-center dark:bg-gray-800/60">
+                      <p className="mb-1 flex items-center justify-center gap-1 text-[10px] text-gray-400">
+                        <TrendingUp className="h-3 w-3" />
+                        รายได้
                       </p>
                       <p className="text-sm font-bold text-[#534AB7] dark:text-[#AFA9EC]">
                         ฿{income.toLocaleString()}
                       </p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-2.5 text-center">
-                      <p className="text-[10px] text-gray-400 mb-1 flex items-center justify-center gap-1">
-                        <BarChart2 className="w-3 h-3" /> กำไร
+                    <div className="rounded-xl bg-gray-50 p-2.5 text-center dark:bg-gray-800/60">
+                      <p className="mb-1 flex items-center justify-center gap-1 text-[10px] text-gray-400">
+                        <BarChart2 className="h-3 w-3" />
+                        กำไรสุทธิ
                       </p>
-                      <p className={`text-sm font-bold ${isProfit ? "text-[#1D9E75]" : "text-red-500"}`}>
-                        {isProfit ? "+" : ""}฿{net.toLocaleString()}
+                      <p className={`text-sm font-bold ${profit >= 0 ? "text-[#1D9E75]" : "text-red-500"}`}>
+                        {profit >= 0 ? "+" : ""}฿{profit.toLocaleString()}
                       </p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-2.5 text-center">
-                      <p className="text-[10px] text-gray-400 mb-1 flex items-center justify-center gap-1">
-                        <Flame className="w-3 h-3" /> Streak
+                    <div className="rounded-xl bg-gray-50 p-2.5 text-center dark:bg-gray-800/60">
+                      <p className="mb-1 flex items-center justify-center gap-1 text-[10px] text-gray-400">
+                        <ListTodo className="h-3 w-3" />
+                        งาน
                       </p>
-                      <p className="text-sm font-bold text-orange-500">{project.streak} วัน</p>
+                      <p className="text-sm font-bold text-orange-500">
+                        {completedTasks}/{taskCount}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Goal Progress */}
                   <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] text-gray-400 flex items-center gap-1">
-                        <Target className="w-3 h-3" /> เป้าหมาย ฿{project.incomeGoal.toLocaleString()}
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                        <Target className="h-3 w-3" />
+                        เป้ารายเดือน ฿{project.monthlyGoal.toLocaleString()}
                       </span>
-                      <span className="text-[11px] font-semibold text-[#534AB7] dark:text-[#AFA9EC]">{pct}%</span>
+                      <span className="text-[11px] font-semibold text-[#534AB7] dark:text-[#AFA9EC]">
+                        {goalPercent}%
+                      </span>
                     </div>
-                    <div className="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-[#7F77DD] to-[#AFA9EC] transition-all duration-500"
-                        style={{ width: `${pct}%` }}
+                        style={{ width: `${goalPercent}%` }}
                       />
                     </div>
                   </div>
 
-                  {/* Footer */}
-                  <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center justify-between border-t border-gray-100 pt-1 dark:border-gray-800">
                     <span className="text-[11px] text-gray-400">
-                      สร้าง {new Date(project.createdAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}
+                      สร้าง {formatShortDate(project.createdAt)}
                     </span>
-                    <span className="text-[11px] font-medium text-[#7F77DD] flex items-center gap-0.5">
-                      เปิดดู <ChevronRight className="w-3.5 h-3.5" />
+                    <span className="flex items-center gap-0.5 text-[11px] font-medium text-[#7F77DD]">
+                      เปิดดู <ChevronRight className="h-3.5 w-3.5" />
                     </span>
                   </div>
-
                 </CardContent>
               </Card>
             )
           })}
         </div>
-      )}
+      ) : null}
 
-      {/* ─── Create Modal ──────────────────────────────────────────────────────── */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="sm:max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 z-[200]">
+        <DialogContent className="z-[200] rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#0F172A] dark:text-white text-lg font-bold">
+            <DialogTitle className="text-lg font-bold text-[#0F172A] dark:text-white">
               สร้างโปรเจกต์ใหม่
             </DialogTitle>
           </DialogHeader>
@@ -311,10 +351,12 @@ export default function ProjectsPage() {
               <Input
                 placeholder="เช่น รับทำพรีเซนต์ Canva"
                 value={form.name}
-                onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setFormError("") }}
-                className="rounded-xl bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-[#0F172A] dark:text-white placeholder:text-gray-400 focus-visible:ring-[#7F77DD]"
+                onChange={(event) => {
+                  setForm((current) => ({ ...current, name: event.target.value }))
+                  setCreateError(null)
+                }}
+                className="rounded-xl border-gray-300 bg-white text-[#0F172A] placeholder:text-gray-400 focus-visible:ring-[#7F77DD] dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               />
-              {formError && <p className="text-xs text-red-500">{formError}</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -322,11 +364,11 @@ export default function ProjectsPage() {
                 คำอธิบาย
               </label>
               <Textarea
-                placeholder="อธิบายโปรเจกต์คร่าวๆ..."
+                placeholder="อธิบายโปรเจกต์คร่าว ๆ"
                 value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                className="rounded-xl bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-[#0F172A] dark:text-white placeholder:text-gray-400 focus-visible:ring-[#7F77DD] resize-none"
+                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
                 rows={3}
+                className="resize-none rounded-xl border-gray-300 bg-white text-[#0F172A] placeholder:text-gray-400 focus-visible:ring-[#7F77DD] dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               />
             </div>
 
@@ -337,74 +379,86 @@ export default function ProjectsPage() {
                 </label>
                 <Input
                   type="number"
-                  placeholder="0"
                   min={0}
                   value={form.initialCost}
-                  onChange={(e) => setForm((f) => ({ ...f, initialCost: e.target.value }))}
-                  className="rounded-xl bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-[#0F172A] dark:text-white placeholder:text-gray-400 focus-visible:ring-[#7F77DD]"
+                  onChange={(event) => setForm((current) => ({ ...current, initialCost: event.target.value }))}
+                  className="rounded-xl border-gray-300 bg-white text-[#0F172A] focus-visible:ring-[#7F77DD] dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
               </div>
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                  เป้าหมายรายได้ (฿)
+                  เป้ารายเดือน (฿)
                 </label>
                 <Input
                   type="number"
-                  placeholder="0"
                   min={0}
-                  value={form.incomeGoal}
-                  onChange={(e) => setForm((f) => ({ ...f, incomeGoal: e.target.value }))}
-                  className="rounded-xl bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-[#0F172A] dark:text-white placeholder:text-gray-400 focus-visible:ring-[#7F77DD]"
+                  value={form.monthlyGoal}
+                  onChange={(event) => setForm((current) => ({ ...current, monthlyGoal: event.target.value }))}
+                  className="rounded-xl border-gray-300 bg-white text-[#0F172A] focus-visible:ring-[#7F77DD] dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
               </div>
             </div>
+
+            {createError ? <p className="text-sm text-red-500">{createError}</p> : null}
           </div>
 
           <DialogFooter className="gap-2 pt-2">
             <Button
               variant="outline"
-              className="rounded-xl border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300"
-              onClick={() => { setShowCreateModal(false); setFormError("") }}
+              className="rounded-xl"
+              onClick={() => {
+                setShowCreateModal(false)
+                setCreateError(null)
+              }}
             >
               ยกเลิก
             </Button>
-            <Button onClick={handleCreate} className="bg-[#7F77DD] hover:bg-[#534AB7] text-white rounded-xl">
-              สร้างโปรเจกต์
+            <Button
+              onClick={() => void handleCreateProject()}
+              disabled={isCreatingProject}
+              className="rounded-xl bg-[#7F77DD] text-white hover:bg-[#534AB7]"
+            >
+              {isCreatingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : "สร้างโปรเจกต์"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ─── Delete Confirm ────────────────────────────────────────────────────── */}
-      <AlertDialog open={!!deleteTargetId} onOpenChange={(o) => !o && setDeleteTargetId(null)}>
+      <AlertDialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>ลบโปรเจกต์นี้?</AlertDialogTitle>
             <AlertDialogDescription>
-              ข้อมูลทั้งหมดของโปรเจกต์จะถูกลบถาวร ไม่สามารถกู้คืนได้
+              โปรเจกต์, task และรายการรายรับรายจ่ายที่ผูกกับโปรเจกต์นี้จะถูกลบถาวร
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-xl">ยกเลิก</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteTargetId && handleDelete(deleteTargetId)}
-              className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+              onClick={() => deleteTargetId && void handleDeleteProject(deleteTargetId)}
+              disabled={isDeletingProject}
+              className="rounded-xl bg-red-500 text-white hover:bg-red-600"
             >
-              ลบโปรเจกต์
+              {isDeletingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : "ลบโปรเจกต์"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ─── Project Detail Drawer ─────────────────────────────────────────────── */}
-      {selectedProject && (
+      {selectedProjectId ? (
         <ProjectDetail
           project={selectedProject}
-          onClose={() => setSelectedProject(null)}
-          onUpdate={handleUpdateProject}
+          isLoading={isProjectDetailLoading}
+          error={projectDetailError}
+          onClose={() => {
+            setSelectedProjectId(null)
+            setSelectedProject(null)
+            setProjectDetailError(null)
+          }}
+          onRefresh={() => void loadProjectDetail(selectedProjectId, false)}
+          onProjectChanged={() => void handleProjectChanged(selectedProjectId)}
         />
-      )}
-
+      ) : null}
     </div>
   )
 }

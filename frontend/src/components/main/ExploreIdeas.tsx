@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { api, handleApiResponse } from "@/lib/api"
-import type { IdeaRecommendation, SearchableSkill, SkillSearchResponse, UserSkill } from "@/types"
+import type { Idea, IdeaRecommendation, SearchableSkill, SkillSearchResponse, UserSkill } from "@/types"
 import { CheckCircle2, ChevronRight, Loader2, Search, X } from "lucide-react"
 
 type SelectedSkill = {
@@ -69,7 +70,7 @@ function formatCategoryLabel(category: string | null): string {
     .join(" ")
 }
 
-function formatIncomeRange(idea: IdeaRecommendation): string {
+function formatIncomeRange(idea: Idea): string {
   const formatter = new Intl.NumberFormat("th-TH")
   const min = formatter.format(idea.estimatedIncome.min)
   const max = formatter.format(idea.estimatedIncome.max)
@@ -102,6 +103,10 @@ function getIdeaTags(idea: IdeaRecommendation): string[] {
   return idea.matchedSkills.length > 0 ? idea.matchedSkills : idea.skills
 }
 
+function getDifficultyLabel(difficulty: IdeaRecommendation["difficulty"]): string {
+  return DIFFICULTY_STYLE[difficulty].label
+}
+
 function getErrorMessage(error: unknown, fallbackMessage: string): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message
@@ -125,6 +130,10 @@ export default function ExploreIdeas() {
   const [isMutatingSkill, setIsMutatingSkill] = useState(false)
   const [skillsError, setSkillsError] = useState<string | null>(null)
   const [ideasError, setIdeasError] = useState<string | null>(null)
+  const [selectedIdea, setSelectedIdea] = useState<Idea | null>(null)
+  const [isIdeaDetailOpen, setIsIdeaDetailOpen] = useState(false)
+  const [isIdeaDetailLoading, setIsIdeaDetailLoading] = useState(false)
+  const [ideaDetailError, setIdeaDetailError] = useState<string | null>(null)
 
   const normalizedQuery = inputValue.trim()
   const selectableResults = searchResults.filter((skill) => !skill.isSelected)
@@ -262,8 +271,26 @@ export default function ExploreIdeas() {
     }
   }
 
+  const handleOpenIdeaDetail = async (idea: IdeaRecommendation) => {
+    setSelectedIdea(idea)
+    setIsIdeaDetailOpen(true)
+    setIdeaDetailError(null)
+    setIsIdeaDetailLoading(true)
+
+    try {
+      const response = await api.ideas.getById(idea.id)
+      const data = await handleApiResponse<Idea>(response)
+      setSelectedIdea(data)
+    } catch (error) {
+      setIdeaDetailError(getErrorMessage(error, "โหลดรายละเอียดไอเดียไม่สำเร็จ"))
+    } finally {
+      setIsIdeaDetailLoading(false)
+    }
+  }
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <>
+      <div className="space-y-8 animate-in fade-in duration-500">
       <div className="text-center max-w-2xl mx-auto pt-4 pb-2">
         <h1 className="text-3xl font-bold text-[#0F172A] dark:text-white mb-3">
           สำรวจไอเดียสร้างรายได้ 💡
@@ -443,7 +470,16 @@ export default function ExploreIdeas() {
             return (
               <Card
                 key={idea.id}
-                className="flex flex-col border-gray-200 dark:border-gray-800 hover:border-[#7F77DD]/60 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group overflow-hidden rounded-2xl"
+                className="flex flex-col border-gray-200 dark:border-gray-800 hover:border-[#7F77DD]/60 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group overflow-hidden rounded-2xl cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onClick={() => void handleOpenIdeaDetail(idea)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    void handleOpenIdeaDetail(idea)
+                  }
+                }}
               >
                 <CardHeader className="p-5 pb-3">
                   <div className="mb-3 flex items-center justify-between gap-3">
@@ -488,7 +524,12 @@ export default function ExploreIdeas() {
                   </div>
                   <Button
                     size="sm"
+                    type="button"
                     className="bg-[#7F77DD] hover:bg-[#534AB7] text-white rounded-xl shadow-sm transition-all active:scale-95"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void handleOpenIdeaDetail(idea)
+                    }}
                   >
                     รายละเอียด
                     <ChevronRight className="w-4 h-4 ml-1" />
@@ -499,6 +540,133 @@ export default function ExploreIdeas() {
           })}
         </div>
       )}
-    </div>
+      </div>
+
+      <Dialog open={isIdeaDetailOpen} onOpenChange={setIsIdeaDetailOpen}>
+        <DialogContent className="max-w-2xl rounded-2xl bg-white p-0 dark:bg-gray-950">
+          {selectedIdea ? (
+            <div className="max-h-[85vh] overflow-y-auto">
+              <DialogHeader className="border-b border-gray-100 px-6 py-5 text-left dark:border-gray-800">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                      DIFFICULTY_STYLE[selectedIdea.difficulty].className
+                    }`}
+                  >
+                    {getDifficultyLabel(selectedIdea.difficulty)}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    เริ่มได้ใน {selectedIdea.timeToStart}
+                  </span>
+                </div>
+                <DialogTitle className="text-xl text-[#0F172A] dark:text-white">
+                  {selectedIdea.title}
+                </DialogTitle>
+                <DialogDescription className="text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  {selectedIdea.description}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-5 px-6 py-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                      รายได้ประเมิน
+                    </p>
+                    <p className="mt-1 text-base font-bold text-[#534AB7] dark:text-[#AFA9EC]">
+                      {formatIncomeRange(selectedIdea)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                      ทักษะที่เกี่ยวข้อง
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {selectedIdea.skills.map((tag) => (
+                        <span
+                          key={`${selectedIdea.id}-detail-${tag}`}
+                          className="rounded-md bg-white px-2 py-1 text-xs text-gray-600 ring-1 ring-gray-200 dark:bg-gray-950 dark:text-gray-300 dark:ring-gray-800"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">
+                    เครื่องมือที่ต้องใช้
+                  </h3>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedIdea.requiredTools.map((tool) => (
+                      <span
+                        key={`${selectedIdea.id}-tool-${tool}`}
+                        className="rounded-full bg-[#EEEDFE] px-3 py-1 text-xs font-medium text-[#534AB7]"
+                      >
+                        {tool}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {selectedIdea.steps && selectedIdea.steps.length > 0 ? (
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">
+                      วิธีเริ่มต้น
+                    </h3>
+                    <ol className="mt-3 space-y-2">
+                      {selectedIdea.steps.map((step, index) => (
+                        <li
+                          key={`${selectedIdea.id}-step-${index}`}
+                          className="flex gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900"
+                        >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#7F77DD] text-xs font-semibold text-white">
+                            {index + 1}
+                          </span>
+                          <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                            {step}
+                          </p>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : null}
+
+                <div>
+                  <h3 className="text-sm font-semibold text-[#0F172A] dark:text-white">
+                    แหล่งอ้างอิงและเครื่องมือเพิ่มเติม
+                  </h3>
+                  <div className="mt-3 space-y-2">
+                    {selectedIdea.resources.map((resource) => (
+                      <a
+                        key={resource}
+                        href={resource}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block rounded-2xl border border-gray-100 px-4 py-3 text-sm text-[#534AB7] transition-colors hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
+                      >
+                        {resource}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                {isIdeaDetailLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    กำลังโหลดรายละเอียดเพิ่มเติม...
+                  </div>
+                ) : null}
+
+                {ideaDetailError ? (
+                  <p className="text-sm text-red-500">{ideaDetailError}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

@@ -1,107 +1,30 @@
-// components/main/SuccessPage.tsx
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { api, handleApiResponse } from "@/lib/api"
+import type { Project, Statistics } from "@/types"
 import {
-  TrendingUp, TrendingDown, BarChart2, Flame, Trophy,
-  Target, CheckSquare, FolderKanban, Star, Zap, Award,
-  Calendar, ArrowUp,
+  TrendingUp,
+  TrendingDown,
+  BarChart2,
+  Flame,
+  Trophy,
+  Target,
+  CheckSquare,
+  FolderKanban,
+  Star,
+  Zap,
+  Award,
+  Calendar,
+  ArrowUp,
+  Loader2,
 } from "lucide-react"
-import { Project } from "@/types/project"
+import { normalizeProjects, type ProjectRecord } from "./projectTypes"
 
-// ─── Mock Data (same projects as ProjectsPage) ────────────────────────────────
-const MOCK_PROJECTS: Project[] = [
-  {
-    id: "1",
-    name: "รับทำพรีเซนต์ Canva",
-    description: "รับทำสไลด์สัมมนาและงานกลุ่มให้นักศึกษา",
-    initialCost: 0,
-    incomeGoal: 5000,
-    createdAt: "2026-03-01",
-    streak: 12,
-    todos: [
-      { id: "t1", text: "ออกแบบ Template ใหม่", done: true, createdAt: "2026-03-05" },
-      { id: "t2", text: "โพสต์โฆษณาใน Facebook Group", done: false, createdAt: "2026-03-06" },
-      { id: "t3", text: "เตรียม Portfolio", done: false, createdAt: "2026-03-07" },
-    ],
-    transactions: [
-      { id: "tx1", type: "income", label: "งาน: สไลด์สัมมนา", amount: 800, date: "2026-03-10" },
-      { id: "tx2", type: "income", label: "งาน: Pitch Deck", amount: 1500, date: "2026-03-17" },
-      { id: "tx3", type: "expense", label: "ซื้อ Canva Pro", amount: 500, date: "2026-03-01" },
-      { id: "tx4", type: "income", label: "งาน: รายงาน", amount: 600, date: "2026-03-24" },
-      { id: "tx5", type: "income", label: "งาน: สไลด์คลาส", amount: 400, date: "2026-03-31" },
-    ],
-    milestones: [
-      { id: "m1", label: "รายได้ครบ ฿1,000", targetAmount: 1000, reached: true, reachedAt: "2026-03-10" },
-      { id: "m2", label: "รายได้ครบ ฿3,000", targetAmount: 3000, reached: true, reachedAt: "2026-03-24" },
-      { id: "m3", label: "รายได้ครบ ฿5,000", targetAmount: 5000, reached: false },
-    ],
-  },
-  {
-    id: "2",
-    name: "ถ่ายรูปสินค้า Shopee",
-    description: "รับถ่ายภาพสินค้าสำหรับร้านค้าออนไลน์",
-    initialCost: 2000,
-    incomeGoal: 10000,
-    createdAt: "2026-03-10",
-    streak: 5,
-    todos: [
-      { id: "t1", text: "ซื้ออุปกรณ์พร็อพถ่ายภาพ", done: true, createdAt: "2026-03-10" },
-      { id: "t2", text: "ติดต่อร้านค้า 5 ร้าน", done: false, createdAt: "2026-03-11" },
-    ],
-    transactions: [
-      { id: "tx1", type: "expense", label: "ซื้ออุปกรณ์", amount: 2000, date: "2026-03-10" },
-      { id: "tx2", type: "income", label: "งาน: ร้าน ABC", amount: 1500, date: "2026-03-20" },
-      { id: "tx3", type: "income", label: "งาน: ร้าน XYZ", amount: 2000, date: "2026-03-27" },
-    ],
-    milestones: [
-      { id: "m1", label: "คืนทุนแล้ว", targetAmount: 2000, reached: true, reachedAt: "2026-03-20" },
-      { id: "m2", label: "รายได้ครบ ฿5,000", targetAmount: 5000, reached: false },
-    ],
-  },
-]
+type AchievementFilter = "all" | "unlocked" | "locked"
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function totalIncome(projects: Project[]) {
-  return projects.flatMap((p) => p.transactions).filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0)
-}
-function totalExpense(projects: Project[]) {
-  return projects.flatMap((p) => p.transactions).filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0) +
-    projects.reduce((s, p) => s + p.initialCost, 0)
-}
-function totalNet(projects: Project[]) { return totalIncome(projects) - totalExpense(projects) }
-function maxStreak(projects: Project[]) { return Math.max(0, ...projects.map((p) => p.streak)) }
-function totalMilestones(projects: Project[]) { return projects.flatMap((p) => p.milestones).filter((m) => m.reached).length }
-function totalTodos(projects: Project[]) { return projects.flatMap((p) => p.todos).filter((t) => t.done).length }
-
-// Group all income by month across projects
-const THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
-function incomeByMonth(projects: Project[]): { label: string; value: number }[] {
-  const map: Record<string, number> = {}
-  projects.flatMap((p) => p.transactions).filter((t) => t.type === "income").forEach((t) => {
-    const d = new Date(t.date)
-    const key = `${d.getFullYear()}-${d.getMonth()}`
-    map[key] = (map[key] ?? 0) + t.amount
-  })
-  return Object.entries(map)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => {
-      const [, month] = key.split("-")
-      return { label: THAI_MONTHS[parseInt(month)], value }
-    })
-}
-
-// Income per project
-function incomeByProject(projects: Project[]): { name: string; income: number; goal: number }[] {
-  return projects.map((p) => ({
-    name: p.name,
-    income: p.transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0),
-    goal: p.incomeGoal,
-  }))
-}
-
-// ─── Achievement definitions ──────────────────────────────────────────────────
 type Achievement = {
   id: string
   icon: React.ReactNode
@@ -112,323 +35,404 @@ type Achievement = {
   bg: string
 }
 
-function buildAchievements(projects: Project[]): Achievement[] {
-  const income = totalIncome(projects)
-  const streak = maxStreak(projects)
-  const ms = totalMilestones(projects)
-  const todos = totalTodos(projects)
+type MonthlyProfitPoint = {
+  label: string
+  value: number
+}
+
+function getErrorMessage(error: unknown, fallbackMessage: string): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message
+  }
+
+  return fallbackMessage
+}
+
+function formatMonthLabel(month: string): string {
+  const [year, monthIndex] = month.split("-").map(Number)
+  if (!year || !monthIndex) return month
+
+  return new Date(year, monthIndex - 1, 1).toLocaleDateString("th-TH", {
+    month: "short",
+  })
+}
+
+function buildAchievements(projects: ProjectRecord[], stats: Statistics, completedTasks: number): Achievement[] {
   const projectCount = projects.length
+  const totalIncome = stats.totalIncome
+  const streak = stats.streak
+  const milestones = stats.milestonesCompleted
+  const reachedGoal = stats.goalsProgress.some((goal) => goal.goal > 0 && goal.current >= goal.goal)
 
   return [
     {
       id: "first_project",
-      icon: <FolderKanban className="w-5 h-5" />,
-      label: "เริ่มต้นแล้ว!",
-      desc: "สร้างโปรเจกต์แรก",
+      icon: <FolderKanban className="h-5 w-5" />,
+      label: "เริ่มต้นแล้ว",
+      desc: "มีโปรเจกต์แรกในระบบ",
       unlocked: projectCount >= 1,
       color: "text-[#534AB7]",
       bg: "bg-[#EEEDFE]",
     },
     {
       id: "first_income",
-      icon: <TrendingUp className="w-5 h-5" />,
+      icon: <TrendingUp className="h-5 w-5" />,
       label: "รายได้แรก",
-      desc: "บันทึกรายรับครั้งแรก",
-      unlocked: income > 0,
+      desc: "มีรายรับเข้าระบบอย่างน้อย 1 ครั้ง",
+      unlocked: totalIncome > 0,
       color: "text-[#1D9E75]",
       bg: "bg-[#E1F5EE]",
     },
     {
       id: "income_1k",
-      icon: <Star className="w-5 h-5" />,
-      label: "หมื่นแรก",
-      desc: "รายได้รวมถึง ฿1,000",
-      unlocked: income >= 1000,
+      icon: <Star className="h-5 w-5" />,
+      label: "ครบ 1,000",
+      desc: "รายได้รวมแตะ 1,000 บาท",
+      unlocked: totalIncome >= 1000,
       color: "text-amber-600",
       bg: "bg-amber-50",
     },
     {
       id: "income_5k",
-      icon: <Zap className="w-5 h-5" />,
-      label: "ห้าพันสตางค์",
-      desc: "รายได้รวมถึง ฿5,000",
-      unlocked: income >= 5000,
+      icon: <Zap className="h-5 w-5" />,
+      label: "ครบ 5,000",
+      desc: "รายได้รวมแตะ 5,000 บาท",
+      unlocked: totalIncome >= 5000,
       color: "text-orange-500",
       bg: "bg-orange-50",
     },
     {
       id: "streak_7",
-      icon: <Flame className="w-5 h-5" />,
-      label: "ไม่หยุดพัก",
-      desc: "Streak ต่อเนื่อง 7 วัน",
+      icon: <Flame className="h-5 w-5" />,
+      label: "ต่อเนื่อง 7 วัน",
+      desc: "Streak ถึง 7 วัน",
       unlocked: streak >= 7,
       color: "text-orange-500",
       bg: "bg-orange-50",
     },
     {
-      id: "streak_30",
-      icon: <Flame className="w-5 h-5" />,
-      label: "นักสู้ตัวจริง",
-      desc: "Streak ต่อเนื่อง 30 วัน",
-      unlocked: streak >= 30,
-      color: "text-red-500",
-      bg: "bg-red-50",
-    },
-    {
       id: "milestone_1",
-      icon: <Trophy className="w-5 h-5" />,
+      icon: <Trophy className="h-5 w-5" />,
       label: "Milestone แรก",
-      desc: "บรรลุ Milestone ครั้งแรก",
-      unlocked: ms >= 1,
-      color: "text-yellow-600",
-      bg: "bg-yellow-50",
-    },
-    {
-      id: "milestone_5",
-      icon: <Award className="w-5 h-5" />,
-      label: "นักสะสม",
-      desc: "บรรลุ Milestone 5 ครั้ง",
-      unlocked: ms >= 5,
+      desc: "ทำ milestone สำเร็จอย่างน้อย 1 รายการ",
+      unlocked: milestones >= 1,
       color: "text-yellow-600",
       bg: "bg-yellow-50",
     },
     {
       id: "todo_10",
-      icon: <CheckSquare className="w-5 h-5" />,
-      label: "ขยันจริง",
-      desc: "ทำ To-Do สำเร็จ 10 อย่าง",
-      unlocked: todos >= 10,
+      icon: <CheckSquare className="h-5 w-5" />,
+      label: "งานเดินหน้า",
+      desc: "ทำ task สำเร็จครบ 10 งาน",
+      unlocked: completedTasks >= 10,
       color: "text-[#534AB7]",
       bg: "bg-[#EEEDFE]",
     },
     {
       id: "multi_project",
-      icon: <FolderKanban className="w-5 h-5" />,
-      label: "หลายสายงาน",
-      desc: "มีโปรเจกต์พร้อมกัน 3 อย่าง",
+      icon: <FolderKanban className="h-5 w-5" />,
+      label: "หลายโปรเจกต์",
+      desc: "มีโปรเจกต์พร้อมกันอย่างน้อย 3 โปรเจกต์",
       unlocked: projectCount >= 3,
       color: "text-[#1D9E75]",
       bg: "bg-[#E1F5EE]",
     },
     {
       id: "profitable",
-      icon: <BarChart2 className="w-5 h-5" />,
-      label: "ติดบวก",
-      desc: "กำไรรวมเป็นบวก",
-      unlocked: totalNet(projects) > 0,
+      icon: <BarChart2 className="h-5 w-5" />,
+      label: "กำไรรวมเป็นบวก",
+      desc: "รายได้รวมมากกว่ารายจ่ายรวม",
+      unlocked: stats.netProfit > 0,
       color: "text-[#1D9E75]",
       bg: "bg-[#E1F5EE]",
     },
     {
       id: "goal_reached",
-      icon: <Target className="w-5 h-5" />,
-      label: "ถึงเป้าแล้ว!",
-      desc: "บรรลุเป้าหมายรายได้ของโปรเจกต์",
-      unlocked: projects.some((p) => {
-        const inc = p.transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0)
-        return p.incomeGoal > 0 && inc >= p.incomeGoal
-      }),
+      icon: <Target className="h-5 w-5" />,
+      label: "ถึงเป้าแล้ว",
+      desc: "มีอย่างน้อย 1 โปรเจกต์ที่ถึงเป้ารายเดือน",
+      unlocked: reachedGoal,
       color: "text-[#534AB7]",
       bg: "bg-[#EEEDFE]",
     },
   ]
 }
 
-// ─── Mini Bar Chart ───────────────────────────────────────────────────────────
-function BarChart({ data }: { data: { label: string; value: number }[] }) {
-  if (data.length === 0)
-    return <p className="text-sm text-gray-400 text-center py-10">ยังไม่มีข้อมูลรายได้</p>
-  const max = Math.max(...data.map((d) => d.value))
+function BarChart({ data }: { data: MonthlyProfitPoint[] }) {
+  if (data.length === 0) {
+    return <p className="py-10 text-center text-sm text-gray-400">ยังไม่มีข้อมูลรายเดือน</p>
+  }
+
+  const maxAbs = Math.max(...data.map((item) => Math.abs(item.value)))
+
   return (
-    <div className="flex items-end gap-2 h-32">
+    <div className="flex h-36 items-end gap-2">
       {data.map(({ label, value }) => (
-        <div key={label} className="flex flex-col items-center gap-1 flex-1 min-w-0">
-          <span className="text-[10px] text-gray-400">{value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value}</span>
-          <div className="w-full rounded-t-md bg-[#7F77DD]/10 flex items-end overflow-hidden" style={{ height: "80px" }}>
+        <div key={label} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+          <span className={`text-[10px] ${value >= 0 ? "text-gray-400" : "text-red-400"}`}>
+            {value > 0 ? "+" : ""}{value >= 1000 || value <= -1000 ? `${(value / 1000).toFixed(1)}k` : value}
+          </span>
+          <div className="relative flex h-24 w-full items-center overflow-hidden">
+            <div className="absolute inset-x-0 top-1/2 h-px bg-gray-200 dark:bg-gray-700" />
             <div
-              className="w-full rounded-t-md bg-gradient-to-t from-[#534AB7] to-[#AFA9EC] transition-all duration-700"
-              style={{ height: max > 0 ? `${(value / max) * 80}px` : "0px" }}
+              className={`absolute left-0 w-full transition-all duration-700 ${
+                value >= 0
+                  ? "bottom-1/2 rounded-t-md bg-gradient-to-t from-[#534AB7] to-[#AFA9EC]"
+                  : "top-1/2 rounded-b-md bg-gradient-to-b from-[#F87171] to-[#FCA5A5]"
+              }`}
+              style={{ height: maxAbs > 0 ? `${(Math.abs(value) / maxAbs) * 48}px` : "0px" }}
             />
           </div>
-          <span className="text-[10px] text-gray-500 truncate w-full text-center">{label}</span>
+          <span className="w-full truncate text-center text-[10px] text-gray-500">{label}</span>
         </div>
       ))}
     </div>
   )
 }
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
 function KpiCard({ icon, label, value, sub, color }: {
-  icon: React.ReactNode; label: string; value: string; sub?: string; color: string
+  icon: React.ReactNode
+  label: string
+  value: string
+  sub?: string
+  color: string
 }) {
   return (
-    <Card className="border-gray-200 dark:border-gray-800 rounded-2xl">
+    <Card className="rounded-2xl border-gray-200 dark:border-gray-800">
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <div className={`p-2 rounded-xl ${color}`}>{icon}</div>
+        <div className="mb-3 flex items-center gap-2">
+          <div className={`rounded-xl p-2 ${color}`}>{icon}</div>
           <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</span>
         </div>
         <p className="text-2xl font-bold text-[#0F172A] dark:text-white">{value}</p>
-        {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+        {sub ? <p className="mt-1 text-xs text-gray-400">{sub}</p> : null}
       </CardContent>
     </Card>
   )
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function SuccessPage() {
-  const projects = MOCK_PROJECTS
-  const [achievementFilter, setAchievementFilter] = useState<"all" | "unlocked" | "locked">("all")
+  const [projects, setProjects] = useState<ProjectRecord[]>([])
+  const [stats, setStats] = useState<Statistics | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [achievementFilter, setAchievementFilter] = useState<AchievementFilter>("all")
 
-  const income = useMemo(() => totalIncome(projects), [projects])
-  const expense = useMemo(() => totalExpense(projects), [projects])
-  const net = income - expense
-  const streak = maxStreak(projects)
-  const msCount = totalMilestones(projects)
-  const todoCount = totalTodos(projects)
-  const monthData = useMemo(() => incomeByMonth(projects), [projects])
-  const projectData = useMemo(() => incomeByProject(projects), [projects])
-  const achievements = useMemo(() => buildAchievements(projects), [projects])
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true)
 
-  const unlockedCount = achievements.filter((a) => a.unlocked).length
-  const filteredAchievements = achievements.filter((a) =>
-    achievementFilter === "all" ? true : achievementFilter === "unlocked" ? a.unlocked : !a.unlocked
+      try {
+        const [projectsResponse, statsResponse] = await Promise.all([
+          api.projects.getAll(),
+          api.transactions.getSummary(),
+        ])
+
+        const [projectsData, statsData] = await Promise.all([
+          handleApiResponse<Project[]>(projectsResponse),
+          handleApiResponse<Statistics>(statsResponse),
+        ])
+
+        setProjects(normalizeProjects(projectsData as unknown as ProjectRecord[]))
+        setStats(statsData)
+        setError(null)
+      } catch (loadError) {
+        setProjects([])
+        setStats(null)
+        setError(getErrorMessage(loadError, "โหลดข้อมูลความสำเร็จไม่สำเร็จ"))
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void loadData()
+  }, [])
+
+  const completedTasks = useMemo(
+    () => projects.reduce((sum, project) => sum + project.tasks.filter((task) => task.completed).length, 0),
+    [projects]
   )
+
+  const monthData = useMemo<MonthlyProfitPoint[]>(
+    () => (stats?.monthlyData ?? []).map((item) => ({ label: formatMonthLabel(item.month), value: item.profit })),
+    [stats]
+  )
+
+  const projectData = useMemo(
+    () => projects.map((project) => {
+      const goalProgress = stats?.goalsProgress.find((goal) => goal.projectId === project.id)
+      const incomeByProject = stats?.incomeByProject.find((item) => item.projectId === project.id)
+
+      return {
+        id: project.id,
+        name: project.name,
+        income: incomeByProject?.total ?? 0,
+        goal: goalProgress?.goal ?? project.monthlyGoal,
+        progress: goalProgress?.progress ?? 0,
+      }
+    }),
+    [projects, stats]
+  )
+
+  const achievements = useMemo(
+    () => (stats ? buildAchievements(projects, stats, completedTasks) : []),
+    [completedTasks, projects, stats]
+  )
+
+  const unlockedCount = achievements.filter((achievement) => achievement.unlocked).length
+  const filteredAchievements = achievements.filter((achievement) =>
+    achievementFilter === "all"
+      ? true
+      : achievementFilter === "unlocked"
+        ? achievement.unlocked
+        : !achievement.unlocked
+  )
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-24 text-gray-400">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        กำลังโหลดหน้าความสำเร็จ...
+      </div>
+    )
+  }
+
+  if (error || !stats) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-950/30">
+        <p>{error ?? "โหลดข้อมูลไม่สำเร็จ"}</p>
+        <Button className="mt-3 rounded-xl" variant="outline" onClick={() => window.location.reload()}>
+          ลองใหม่
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-
-      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-[#0F172A] dark:text-white mb-1">ความสำเร็จ 🏆</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">ภาพรวมทุกโปรเจกต์และความก้าวหน้าของคุณ</p>
+        <h1 className="mb-1 text-3xl font-bold text-[#0F172A] dark:text-white">ความสำเร็จ</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          ภาพรวมผลลัพธ์ของทุกโปรเจกต์จากข้อมูลจริงในระบบ
+        </p>
       </div>
 
-      {/* ── KPI Overview ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <KpiCard
-          icon={<TrendingUp className="w-4 h-4 text-[#534AB7]" />}
+          icon={<TrendingUp className="h-4 w-4 text-[#534AB7]" />}
           label="รายได้รวม"
-          value={`฿${income.toLocaleString()}`}
+          value={`฿${stats.totalIncome.toLocaleString()}`}
           sub="ทุกโปรเจกต์"
           color="bg-[#EEEDFE]"
         />
         <KpiCard
-          icon={<TrendingDown className="w-4 h-4 text-red-500" />}
+          icon={<TrendingDown className="h-4 w-4 text-red-500" />}
           label="รายจ่ายรวม"
-          value={`฿${expense.toLocaleString()}`}
-          sub="รวมต้นทุน"
+          value={`฿${stats.totalExpense.toLocaleString()}`}
+          sub="จากรายการ expense"
           color="bg-red-50 dark:bg-red-900/20"
         />
         <KpiCard
-          icon={<BarChart2 className={`w-4 h-4 ${net >= 0 ? "text-[#1D9E75]" : "text-red-500"}`} />}
-          label={net >= 0 ? "กำไรสุทธิ" : "ขาดทุน"}
-          value={`${net >= 0 ? "+" : ""}฿${net.toLocaleString()}`}
-          color={net >= 0 ? "bg-[#E1F5EE]" : "bg-red-50 dark:bg-red-900/20"}
+          icon={<BarChart2 className={`h-4 w-4 ${stats.netProfit >= 0 ? "text-[#1D9E75]" : "text-red-500"}`} />}
+          label={stats.netProfit >= 0 ? "กำไรสุทธิ" : "ขาดทุนสุทธิ"}
+          value={`${stats.netProfit >= 0 ? "+" : ""}฿${stats.netProfit.toLocaleString()}`}
+          color={stats.netProfit >= 0 ? "bg-[#E1F5EE]" : "bg-red-50 dark:bg-red-900/20"}
         />
         <KpiCard
-          icon={<Flame className="w-4 h-4 text-orange-500" />}
-          label="Streak สูงสุด"
-          value={`${streak} วัน`}
+          icon={<Flame className="h-4 w-4 text-orange-500" />}
+          label="Streak"
+          value={`${stats.streak} วัน`}
+          sub="จาก backend"
           color="bg-orange-50 dark:bg-orange-900/20"
         />
         <KpiCard
-          icon={<Trophy className="w-4 h-4 text-yellow-600" />}
+          icon={<Trophy className="h-4 w-4 text-yellow-600" />}
           label="Milestones"
-          value={`${msCount} รายการ`}
-          sub="บรรลุแล้ว"
+          value={`${stats.milestonesCompleted} รายการ`}
+          sub="ทำสำเร็จแล้ว"
           color="bg-yellow-50 dark:bg-yellow-900/20"
         />
         <KpiCard
-          icon={<CheckSquare className="w-4 h-4 text-[#534AB7]" />}
-          label="To-Do สำเร็จ"
-          value={`${todoCount} งาน`}
+          icon={<CheckSquare className="h-4 w-4 text-[#534AB7]" />}
+          label="Task สำเร็จ"
+          value={`${completedTasks} งาน`}
+          sub={`${projects.length} โปรเจกต์`}
           color="bg-[#EEEDFE]"
         />
       </div>
 
-      {/* ── Charts Row ────────────────────────────────────────────────────────── */}
-      <div className="grid md:grid-cols-2 gap-5">
-
-        {/* Monthly Income Chart */}
-        <Card className="border-gray-200 dark:border-gray-800 rounded-2xl">
+      <div className="grid gap-5 md:grid-cols-2">
+        <Card className="rounded-2xl border-gray-200 dark:border-gray-800">
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Calendar className="w-4 h-4 text-[#7F77DD]" />
-              <p className="text-sm font-semibold text-[#0F172A] dark:text-white">รายได้รายเดือน (ทุกโปรเจกต์)</p>
+            <div className="mb-4 flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-[#7F77DD]" />
+              <p className="text-sm font-semibold text-[#0F172A] dark:text-white">กำไรสุทธิรายเดือน</p>
             </div>
             <BarChart data={monthData} />
           </CardContent>
         </Card>
 
-        {/* Per-Project Comparison */}
-        <Card className="border-gray-200 dark:border-gray-800 rounded-2xl">
+        <Card className="rounded-2xl border-gray-200 dark:border-gray-800">
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <ArrowUp className="w-4 h-4 text-[#7F77DD]" />
-              <p className="text-sm font-semibold text-[#0F172A] dark:text-white">รายได้แต่ละโปรเจกต์ vs เป้าหมาย</p>
+            <div className="mb-4 flex items-center gap-2">
+              <ArrowUp className="h-4 w-4 text-[#7F77DD]" />
+              <p className="text-sm font-semibold text-[#0F172A] dark:text-white">รายได้ต่อโปรเจกต์เทียบเป้ารายเดือน</p>
             </div>
             <div className="space-y-4">
-              {projectData.map(({ name, income: inc, goal }) => {
-                const pct = goal > 0 ? Math.min(100, Math.round((inc / goal) * 100)) : 0
-                return (
-                  <div key={name}>
-                    <div className="flex justify-between items-baseline mb-1.5">
-                      <span className="text-sm text-[#0F172A] dark:text-white font-medium truncate max-w-[60%]">{name}</span>
-                      <span className="text-xs text-gray-400 shrink-0">
-                        ฿{inc.toLocaleString()} / ฿{goal.toLocaleString()}
+              {projectData.length === 0 ? (
+                <p className="py-10 text-center text-sm text-gray-400">ยังไม่มีโปรเจกต์</p>
+              ) : (
+                projectData.map(({ id, name, income, goal, progress }) => (
+                  <div key={id}>
+                    <div className="mb-1.5 flex items-baseline justify-between">
+                      <span className="max-w-[60%] truncate text-sm font-medium text-[#0F172A] dark:text-white">{name}</span>
+                      <span className="shrink-0 text-xs text-gray-400">
+                        ฿{income.toLocaleString()} / ฿{goal.toLocaleString()}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                         <div
                           className="h-full rounded-full bg-gradient-to-r from-[#7F77DD] to-[#AFA9EC] transition-all duration-700"
-                          style={{ width: `${pct}%` }}
+                          style={{ width: `${Math.min(100, progress)}%` }}
                         />
                       </div>
-                      <span className="text-[11px] font-semibold text-[#534AB7] dark:text-[#AFA9EC] w-9 text-right shrink-0">
-                        {pct}%
+                      <span className="w-9 shrink-0 text-right text-[11px] font-semibold text-[#534AB7] dark:text-[#AFA9EC]">
+                        {progress}%
                       </span>
                     </div>
                   </div>
-                )
-              })}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
-
       </div>
 
-      {/* ── All Milestones ────────────────────────────────────────────────────── */}
-      <Card className="border-gray-200 dark:border-gray-800 rounded-2xl">
+      <Card className="rounded-2xl border-gray-200 dark:border-gray-800">
         <CardContent className="p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Trophy className="w-4 h-4 text-yellow-500" />
-            <p className="text-sm font-semibold text-[#0F172A] dark:text-white">Milestones ทั้งหมด</p>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-[#7F77DD]" />
+              <p className="text-sm font-semibold text-[#0F172A] dark:text-white">สถานะเป้ารายเดือนของโปรเจกต์</p>
+            </div>
           </div>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {projects.flatMap((p) =>
-              p.milestones.map((ms) => (
-                <div
-                  key={`${p.id}-${ms.id}`}
-                  className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${
-                    ms.reached
-                      ? "bg-[#EAF3DE] dark:bg-[#27500A]/20 border-[#97C459] dark:border-[#3B6D11]"
-                      : "bg-gray-50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-800"
-                  }`}
-                >
-                  <Trophy className={`w-4 h-4 mt-0.5 shrink-0 ${ms.reached ? "text-[#3B6D11]" : "text-gray-300"}`} />
-                  <div className="min-w-0">
-                    <p className={`text-sm font-medium truncate ${ms.reached ? "text-[#27500A] dark:text-[#C0DD97]" : "text-[#0F172A] dark:text-white"}`}>
-                      {ms.label}
-                    </p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">{p.name}</p>
-                    {ms.reached && ms.reachedAt && (
-                      <p className="text-[11px] text-[#1D9E75] mt-0.5">
-                        ✓ {new Date(ms.reachedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}
-                      </p>
-                    )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {projectData.length === 0 ? (
+              <p className="text-sm text-gray-400">ยังไม่มีข้อมูลโปรเจกต์</p>
+            ) : (
+              projectData.map(({ id, name, income, goal, progress }) => (
+                <div key={id} className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/60">
+                  <p className="truncate text-sm font-semibold text-[#0F172A] dark:text-white">{name}</p>
+                  <p className="mt-1 text-[11px] text-gray-400">เป้ารายเดือน ฿{goal.toLocaleString()}</p>
+                  <p className="mt-2 text-sm font-bold text-[#534AB7] dark:text-[#AFA9EC]">ทำได้ ฿{income.toLocaleString()}</p>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                    <div
+                      className="h-full rounded-full bg-[#7F77DD]"
+                      style={{ width: `${Math.min(100, progress)}%` }}
+                    />
                   </div>
+                  <p className="mt-2 text-[11px] text-gray-500">{progress}%</p>
                 </div>
               ))
             )}
@@ -436,42 +440,40 @@ export default function SuccessPage() {
         </CardContent>
       </Card>
 
-      {/* ── Achievements ──────────────────────────────────────────────────────── */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Award className="w-5 h-5 text-[#7F77DD]" />
+            <Award className="h-5 w-5 text-[#7F77DD]" />
             <h2 className="text-lg font-bold text-[#0F172A] dark:text-white">Achievements</h2>
-            <span className="text-xs bg-[#EEEDFE] text-[#534AB7] font-semibold px-2.5 py-1 rounded-full">
+            <span className="rounded-full bg-[#EEEDFE] px-2.5 py-1 text-xs font-semibold text-[#534AB7]">
               {unlockedCount}/{achievements.length}
             </span>
           </div>
 
-          {/* Filter Tabs */}
-          <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
-            {(["all", "unlocked", "locked"] as const).map((f) => (
+          <div className="flex gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+            {(["all", "unlocked", "locked"] as const).map((filter) => (
               <button
-                key={f}
-                onClick={() => setAchievementFilter(f)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  achievementFilter === f
+                key={filter}
+                type="button"
+                onClick={() => setAchievementFilter(filter)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                  achievementFilter === filter
                     ? "bg-[#7F77DD] text-white shadow-sm"
                     : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                 }`}
               >
-                {f === "all" ? "ทั้งหมด" : f === "unlocked" ? "ได้แล้ว" : "ยังไม่ได้"}
+                {filter === "all" ? "ทั้งหมด" : filter === "unlocked" ? "ได้แล้ว" : "ยังไม่ได้"}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Achievement Progress Bar */}
         <div className="mb-5">
-          <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+          <div className="mb-1.5 flex justify-between text-xs text-gray-400">
             <span>ความก้าวหน้า</span>
             <span>{unlockedCount} / {achievements.length} รายการ</span>
           </div>
-          <div className="w-full h-2.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
             <div
               className="h-full rounded-full bg-gradient-to-r from-[#7F77DD] to-[#AFA9EC] transition-all duration-700"
               style={{ width: `${achievements.length > 0 ? (unlockedCount / achievements.length) * 100 : 0}%` }}
@@ -479,35 +481,34 @@ export default function SuccessPage() {
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredAchievements.map((a) => (
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {filteredAchievements.map((achievement) => (
             <div
-              key={a.id}
-              className={`flex items-start gap-3 p-4 rounded-2xl border transition-all ${
-                a.unlocked
-                  ? "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 shadow-sm"
-                  : "bg-gray-50 dark:bg-gray-800/40 border-gray-100 dark:border-gray-800 opacity-50 grayscale"
+              key={achievement.id}
+              className={`flex items-start gap-3 rounded-2xl border p-4 transition-all ${
+                achievement.unlocked
+                  ? "border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900"
+                  : "border-gray-100 bg-gray-50 opacity-50 grayscale dark:border-gray-800 dark:bg-gray-800/40"
               }`}
             >
-              <div className={`p-2.5 rounded-xl shrink-0 ${a.unlocked ? a.bg : "bg-gray-100 dark:bg-gray-800"}`}>
-                <span className={a.unlocked ? a.color : "text-gray-400"}>{a.icon}</span>
+              <div className={`shrink-0 rounded-xl p-2.5 ${achievement.unlocked ? achievement.bg : "bg-gray-100 dark:bg-gray-800"}`}>
+                <span className={achievement.unlocked ? achievement.color : "text-gray-400"}>{achievement.icon}</span>
               </div>
               <div className="min-w-0">
-                <p className={`text-sm font-semibold ${a.unlocked ? "text-[#0F172A] dark:text-white" : "text-gray-400"}`}>
-                  {a.label}
+                <p className={`text-sm font-semibold ${achievement.unlocked ? "text-[#0F172A] dark:text-white" : "text-gray-400"}`}>
+                  {achievement.label}
                 </p>
-                <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{a.desc}</p>
-                {a.unlocked && (
-                  <span className="inline-block mt-1.5 text-[10px] bg-[#E1F5EE] text-[#1D9E75] font-semibold px-2 py-0.5 rounded-full">
-                    ✓ ปลดล็อกแล้ว
+                <p className="mt-0.5 text-[11px] leading-snug text-gray-400">{achievement.desc}</p>
+                {achievement.unlocked ? (
+                  <span className="mt-1.5 inline-block rounded-full bg-[#E1F5EE] px-2 py-0.5 text-[10px] font-semibold text-[#1D9E75]">
+                    ปลดล็อกแล้ว
                   </span>
-                )}
+                ) : null}
               </div>
             </div>
           ))}
         </div>
       </div>
-
     </div>
   )
 }
