@@ -85,6 +85,8 @@ export default function ProjectsPage() {
     initialCost: "",
     monthlyGoal: "",
   })
+  const [starterTaskInput, setStarterTaskInput] = useState("")
+  const [starterTasks, setStarterTasks] = useState<string[]>([])
 
   async function loadProjects() {
     setIsProjectsLoading(true)
@@ -129,6 +131,20 @@ export default function ProjectsPage() {
     await loadProjectDetail(projectId)
   }
 
+  const handleAddStarterTask = () => {
+    const nextTask = starterTaskInput.trim()
+
+    if (!nextTask) return
+
+    setStarterTasks((current) => [...current, nextTask])
+    setStarterTaskInput("")
+    setCreateError(null)
+  }
+
+  const handleRemoveStarterTask = (taskIndex: number) => {
+    setStarterTasks((current) => current.filter((_, index) => index !== taskIndex))
+  }
+
   const handleCreateProject = async () => {
     if (!form.name.trim()) {
       setCreateError("กรุณากรอกชื่อโปรเจกต์")
@@ -143,6 +159,7 @@ export default function ProjectsPage() {
         description: form.description.trim() || undefined,
         initialCost: parseFloat(form.initialCost) || 0,
         monthlyGoal: parseFloat(form.monthlyGoal) || 0,
+        tasks: starterTasks.length > 0 ? starterTasks : undefined,
       })
 
       const created = await handleApiResponse<Project>(response)
@@ -150,6 +167,8 @@ export default function ProjectsPage() {
 
       setProjects((prev) => [normalized, ...prev])
       setForm({ name: "", description: "", initialCost: "", monthlyGoal: "" })
+      setStarterTaskInput("")
+      setStarterTasks([])
       setCreateError(null)
       setShowCreateModal(false)
       await loadProjectDetail(normalized.id)
@@ -399,6 +418,54 @@ export default function ProjectsPage() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                งานเริ่มต้น
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="งานเริ่มต้น..."
+                  value={starterTaskInput}
+                  onChange={(event) => setStarterTaskInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      handleAddStarterTask()
+                    }
+                  }}
+                  className="rounded-xl border-gray-300 bg-white text-[#0F172A] placeholder:text-gray-400 focus-visible:ring-[#7F77DD] dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={handleAddStarterTask}
+                >
+                  เพิ่มงานเริ่มต้น
+                </Button>
+              </div>
+
+              {starterTasks.length > 0 ? (
+                <div className="space-y-2 rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800/60">
+                  {starterTasks.map((task, index) => (
+                    <div key={`${task}-${index}`} className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-[#0F172A] dark:text-white">{task}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveStarterTask(index)}
+                        className="rounded-lg p-1 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                        aria-label={`ลบงานเริ่มต้น ${task}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">เพิ่ม to-do เริ่มต้นไว้ได้ตั้งแต่ตอนสร้างโปรเจกต์</p>
+              )}
+            </div>
+
             {createError ? <p className="text-sm text-red-500">{createError}</p> : null}
           </div>
 
@@ -409,6 +476,8 @@ export default function ProjectsPage() {
               onClick={() => {
                 setShowCreateModal(false)
                 setCreateError(null)
+                setStarterTaskInput("")
+                setStarterTasks([])
               }}
             >
               ยกเลิก

@@ -3,27 +3,32 @@
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { api, handleApiResponse } from "@/lib/api"
-import type { Project, Statistics } from "@/types"
+import type { Milestone, Project, Statistics } from "@/types"
 import {
-  TrendingUp,
-  TrendingDown,
-  BarChart2,
-  Flame,
-  Trophy,
-  Target,
-  CheckSquare,
-  FolderKanban,
-  Star,
-  Zap,
-  Award,
-  Calendar,
   ArrowUp,
+  Award,
+  BarChart2,
+  Calendar,
+  CheckSquare,
+  Flame,
+  FolderKanban,
   Loader2,
+  Plus,
+  Star,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Trophy,
+  Trash2,
+  Zap,
 } from "lucide-react"
 import { normalizeProjects, type ProjectRecord } from "./projectTypes"
 
 type AchievementFilter = "all" | "unlocked" | "locked"
+type ChartView = "month" | "week"
 
 type Achievement = {
   id: string
@@ -35,7 +40,7 @@ type Achievement = {
   bg: string
 }
 
-type MonthlyProfitPoint = {
+type ProfitPoint = {
   label: string
   value: number
 }
@@ -48,6 +53,11 @@ function getErrorMessage(error: unknown, fallbackMessage: string): string {
   return fallbackMessage
 }
 
+function calculateGoalProgress(currentIncome: number, goal: number): number {
+  if (goal <= 0) return 0
+  return Math.min(100, Math.round((currentIncome / goal) * 100))
+}
+
 function formatMonthLabel(month: string): string {
   const [year, monthIndex] = month.split("-").map(Number)
   if (!year || !monthIndex) return month
@@ -57,10 +67,17 @@ function formatMonthLabel(month: string): string {
   })
 }
 
+function formatWeekLabel(week: string): string {
+  const match = week.match(/^(\d{4})-W(\d{2})$/)
+  if (!match) return week
+
+  return `W${match[2]}`
+}
+
 function buildAchievements(projects: ProjectRecord[], stats: Statistics, completedTasks: number): Achievement[] {
   const projectCount = projects.length
   const totalIncome = stats.totalIncome
-  const streak = stats.streak
+  const maxStreak = stats.maxStreak
   const milestones = stats.milestonesCompleted
   const reachedGoal = stats.goalsProgress.some((goal) => goal.goal > 0 && goal.current >= goal.goal)
 
@@ -78,7 +95,7 @@ function buildAchievements(projects: ProjectRecord[], stats: Statistics, complet
       id: "first_income",
       icon: <TrendingUp className="h-5 w-5" />,
       label: "รายได้แรก",
-      desc: "มีรายรับเข้าระบบอย่างน้อย 1 ครั้ง",
+      desc: "มีรายรับเข้าอย่างน้อย 1 ครั้ง",
       unlocked: totalIncome > 0,
       color: "text-[#1D9E75]",
       bg: "bg-[#E1F5EE]",
@@ -106,7 +123,7 @@ function buildAchievements(projects: ProjectRecord[], stats: Statistics, complet
       icon: <Flame className="h-5 w-5" />,
       label: "ต่อเนื่อง 7 วัน",
       desc: "Streak ถึง 7 วัน",
-      unlocked: streak >= 7,
+      unlocked: maxStreak >= 7,
       color: "text-orange-500",
       bg: "bg-orange-50",
     },
@@ -158,9 +175,9 @@ function buildAchievements(projects: ProjectRecord[], stats: Statistics, complet
   ]
 }
 
-function BarChart({ data }: { data: MonthlyProfitPoint[] }) {
+function BarChart({ data, emptyLabel }: { data: ProfitPoint[]; emptyLabel: string }) {
   if (data.length === 0) {
-    return <p className="py-10 text-center text-sm text-gray-400">ยังไม่มีข้อมูลรายเดือน</p>
+    return <p className="py-10 text-center text-sm text-gray-400">{emptyLabel}</p>
   }
 
   const maxAbs = Math.max(...data.map((item) => Math.abs(item.value)))
@@ -170,7 +187,8 @@ function BarChart({ data }: { data: MonthlyProfitPoint[] }) {
       {data.map(({ label, value }) => (
         <div key={label} className="flex min-w-0 flex-1 flex-col items-center gap-1">
           <span className={`text-[10px] ${value >= 0 ? "text-gray-400" : "text-red-400"}`}>
-            {value > 0 ? "+" : ""}{value >= 1000 || value <= -1000 ? `${(value / 1000).toFixed(1)}k` : value}
+            {value > 0 ? "+" : ""}
+            {value >= 1000 || value <= -1000 ? `${(value / 1000).toFixed(1)}k` : value}
           </span>
           <div className="relative flex h-24 w-full items-center overflow-hidden">
             <div className="absolute inset-x-0 top-1/2 h-px bg-gray-200 dark:bg-gray-700" />
@@ -190,7 +208,13 @@ function BarChart({ data }: { data: MonthlyProfitPoint[] }) {
   )
 }
 
-function KpiCard({ icon, label, value, sub, color }: {
+function KpiCard({
+  icon,
+  label,
+  value,
+  sub,
+  color,
+}: {
   icon: React.ReactNode
   label: string
   value: string
@@ -214,37 +238,51 @@ function KpiCard({ icon, label, value, sub, color }: {
 export default function SuccessPage() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [stats, setStats] = useState<Statistics | null>(null)
+  const [milestones, setMilestones] = useState<Milestone[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [achievementFilter, setAchievementFilter] = useState<AchievementFilter>("all")
+  const [chartView, setChartView] = useState<ChartView>("month")
+  const [milestoneForm, setMilestoneForm] = useState({
+    title: "",
+    target: "",
+    description: "",
+  })
+  const [milestoneError, setMilestoneError] = useState<string | null>(null)
+  const [isMilestoneCreating, setIsMilestoneCreating] = useState(false)
+  const [milestoneBusyId, setMilestoneBusyId] = useState<string | null>(null)
+
+  async function loadData() {
+    setIsLoading(true)
+
+    try {
+      const [projectsResponse, statsResponse, milestonesResponse] = await Promise.all([
+        api.projects.getAll(),
+        api.transactions.getSummary(),
+        api.milestones.getAll(),
+      ])
+
+      const [projectsData, statsData, milestonesData] = await Promise.all([
+        handleApiResponse<Project[]>(projectsResponse),
+        handleApiResponse<Statistics>(statsResponse),
+        handleApiResponse<Milestone[]>(milestonesResponse),
+      ])
+
+      setProjects(normalizeProjects(projectsData as unknown as ProjectRecord[]))
+      setStats(statsData)
+      setMilestones(milestonesData)
+      setError(null)
+    } catch (loadError) {
+      setProjects([])
+      setStats(null)
+      setMilestones([])
+      setError(getErrorMessage(loadError, "โหลดข้อมูลความสำเร็จไม่สำเร็จ"))
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    async function loadData() {
-      setIsLoading(true)
-
-      try {
-        const [projectsResponse, statsResponse] = await Promise.all([
-          api.projects.getAll(),
-          api.transactions.getSummary(),
-        ])
-
-        const [projectsData, statsData] = await Promise.all([
-          handleApiResponse<Project[]>(projectsResponse),
-          handleApiResponse<Statistics>(statsResponse),
-        ])
-
-        setProjects(normalizeProjects(projectsData as unknown as ProjectRecord[]))
-        setStats(statsData)
-        setError(null)
-      } catch (loadError) {
-        setProjects([])
-        setStats(null)
-        setError(getErrorMessage(loadError, "โหลดข้อมูลความสำเร็จไม่สำเร็จ"))
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
     void loadData()
   }, [])
 
@@ -253,8 +291,13 @@ export default function SuccessPage() {
     [projects]
   )
 
-  const monthData = useMemo<MonthlyProfitPoint[]>(
+  const monthData = useMemo<ProfitPoint[]>(
     () => (stats?.monthlyData ?? []).map((item) => ({ label: formatMonthLabel(item.month), value: item.profit })),
+    [stats]
+  )
+
+  const weekData = useMemo<ProfitPoint[]>(
+    () => (stats?.weeklyData ?? []).map((item) => ({ label: formatWeekLabel(item.week), value: item.profit })),
     [stats]
   )
 
@@ -262,13 +305,15 @@ export default function SuccessPage() {
     () => projects.map((project) => {
       const goalProgress = stats?.goalsProgress.find((goal) => goal.projectId === project.id)
       const incomeByProject = stats?.incomeByProject.find((item) => item.projectId === project.id)
+      const goal = goalProgress?.goal ?? project.monthlyGoal
+      const income = incomeByProject?.total ?? goalProgress?.current ?? 0
 
       return {
         id: project.id,
         name: project.name,
-        income: incomeByProject?.total ?? 0,
-        goal: goalProgress?.goal ?? project.monthlyGoal,
-        progress: goalProgress?.progress ?? 0,
+        income,
+        goal,
+        progress: calculateGoalProgress(income, goal),
       }
     }),
     [projects, stats]
@@ -288,6 +333,73 @@ export default function SuccessPage() {
         : !achievement.unlocked
   )
 
+  async function handleCreateMilestone() {
+    const title = milestoneForm.title.trim()
+    const target = milestoneForm.target.trim()
+    const description = milestoneForm.description.trim()
+
+    if (!title || !target) {
+      setMilestoneError("กรุณากรอกชื่อ milestone และเป้าหมาย")
+      return
+    }
+
+    setIsMilestoneCreating(true)
+
+    try {
+      const response = await api.milestones.create({
+        title,
+        target,
+        description: description || undefined,
+      })
+
+      await handleApiResponse(response)
+      setMilestoneForm({ title: "", target: "", description: "" })
+      setMilestoneError(null)
+      await loadData()
+    } catch (createError) {
+      setMilestoneError(getErrorMessage(createError, "สร้าง milestone ไม่สำเร็จ"))
+    } finally {
+      setIsMilestoneCreating(false)
+    }
+  }
+
+  async function handleToggleMilestone(milestone: Milestone) {
+    setMilestoneBusyId(milestone.id)
+
+    try {
+      const response = await api.milestones.update(milestone.id, {
+        achieved: !milestone.achieved,
+      })
+
+      await handleApiResponse(response)
+      setMilestoneError(null)
+      await loadData()
+    } catch (updateError) {
+      setMilestoneError(getErrorMessage(updateError, "อัปเดต milestone ไม่สำเร็จ"))
+    } finally {
+      setMilestoneBusyId(null)
+    }
+  }
+
+  async function handleDeleteMilestone(milestoneId: string) {
+    setMilestoneBusyId(milestoneId)
+
+    try {
+      const response = await api.milestones.delete(milestoneId)
+
+      if (!response.ok) {
+        await handleApiResponse(response)
+      }
+
+      setMilestoneError(null)
+      await loadData()
+    } catch (deleteError) {
+      setMilestoneError(getErrorMessage(deleteError, "ลบ milestone ไม่สำเร็จ"))
+    } finally {
+      setMilestoneBusyId(null)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-gray-400">
@@ -301,7 +413,7 @@ export default function SuccessPage() {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-950/30">
         <p>{error ?? "โหลดข้อมูลไม่สำเร็จ"}</p>
-        <Button className="mt-3 rounded-xl" variant="outline" onClick={() => window.location.reload()}>
+        <Button className="mt-3 rounded-xl" variant="outline" onClick={() => void loadData()}>
           ลองใหม่
         </Button>
       </div>
@@ -342,8 +454,15 @@ export default function SuccessPage() {
           icon={<Flame className="h-4 w-4 text-orange-500" />}
           label="Streak"
           value={`${stats.streak} วัน`}
-          sub="จาก backend"
+          sub="ความต่อเนื่องล่าสุด"
           color="bg-orange-50 dark:bg-orange-900/20"
+        />
+        <KpiCard
+          icon={<Award className="h-4 w-4 text-amber-600" />}
+          label="Max Streak"
+          value={`${stats.maxStreak} วัน`}
+          sub="สถิติสูงสุดที่ทำได้"
+          color="bg-amber-50 dark:bg-amber-900/20"
         />
         <KpiCard
           icon={<Trophy className="h-4 w-4 text-yellow-600" />}
@@ -364,11 +483,35 @@ export default function SuccessPage() {
       <div className="grid gap-5 md:grid-cols-2">
         <Card className="rounded-2xl border-gray-200 dark:border-gray-800">
           <CardContent className="p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-[#7F77DD]" />
-              <p className="text-sm font-semibold text-[#0F172A] dark:text-white">กำไรสุทธิรายเดือน</p>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-[#7F77DD]" />
+                <p className="text-sm font-semibold text-[#0F172A] dark:text-white">
+                  {chartView === "month" ? "กำไรสุทธิรายเดือน" : "กำไรสุทธิรายสัปดาห์"}
+                </p>
+              </div>
+
+              <div className="flex gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+                {(["month", "week"] as const).map((view) => (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => setChartView(view)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                      chartView === view
+                        ? "bg-[#7F77DD] text-white shadow-sm"
+                        : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                    }`}
+                  >
+                    {view === "month" ? "รายเดือน" : "รายสัปดาห์"}
+                  </button>
+                ))}
+              </div>
             </div>
-            <BarChart data={monthData} />
+            <BarChart
+              data={chartView === "month" ? monthData : weekData}
+              emptyLabel={chartView === "month" ? "ยังไม่มีข้อมูลรายเดือน" : "ยังไม่มีข้อมูลรายสัปดาห์"}
+            />
           </CardContent>
         </Card>
 
@@ -436,6 +579,132 @@ export default function SuccessPage() {
                 </div>
               ))
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl border-gray-200 dark:border-gray-800">
+        <CardContent className="space-y-5 p-5">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-[#7F77DD]" />
+            <h2 className="text-lg font-bold text-[#0F172A] dark:text-white">Milestones</h2>
+            <span className="rounded-full bg-[#EEEDFE] px-2.5 py-1 text-xs font-semibold text-[#534AB7]">
+              {stats.milestonesCompleted}/{milestones.length}
+            </span>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[1.1fr_1.4fr]">
+            <div className="space-y-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/60">
+              <Input
+                placeholder="เช่น รายได้ครบ 1,000 บาท"
+                value={milestoneForm.title}
+                onChange={(event) => {
+                  setMilestoneForm((current) => ({ ...current, title: event.target.value }))
+                  setMilestoneError(null)
+                }}
+                className="rounded-xl bg-white dark:bg-gray-950"
+              />
+              <Input
+                placeholder="เช่น ปิดงานแรกให้ได้ภายในเดือนนี้"
+                value={milestoneForm.target}
+                onChange={(event) => {
+                  setMilestoneForm((current) => ({ ...current, target: event.target.value }))
+                  setMilestoneError(null)
+                }}
+                className="rounded-xl bg-white dark:bg-gray-950"
+              />
+              <Textarea
+                placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
+                value={milestoneForm.description}
+                onChange={(event) => {
+                  setMilestoneForm((current) => ({ ...current, description: event.target.value }))
+                  setMilestoneError(null)
+                }}
+                rows={3}
+                className="resize-none rounded-xl bg-white dark:bg-gray-950"
+              />
+              {milestoneError ? <p className="text-sm text-red-500">{milestoneError}</p> : null}
+              <Button
+                type="button"
+                onClick={() => void handleCreateMilestone()}
+                disabled={isMilestoneCreating}
+                className="w-full gap-2 rounded-xl bg-[#7F77DD] text-white hover:bg-[#534AB7]"
+              >
+                {isMilestoneCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                เพิ่ม milestone
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {milestones.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-gray-200 px-5 py-10 text-center text-sm text-gray-400 dark:border-gray-800">
+                  ยังไม่มี milestone
+                </div>
+              ) : (
+                milestones.map((milestone) => {
+                  const isBusy = milestoneBusyId === milestone.id
+
+                  return (
+                    <div
+                      key={milestone.id}
+                      className={`rounded-2xl border p-4 transition-all ${
+                        milestone.achieved
+                          ? "border-[#5DCAA5] bg-[#EAF8F2] dark:border-[#1D9E75]/60 dark:bg-[#0E2D22]"
+                          : "border-gray-100 bg-white dark:border-gray-800 dark:bg-gray-900"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-[#0F172A] dark:text-white">{milestone.title}</p>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{milestone.target}</p>
+                          {milestone.description ? (
+                            <p className="mt-2 text-xs leading-relaxed text-gray-400">{milestone.description}</p>
+                          ) : null}
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                            milestone.achieved
+                              ? "bg-[#1D9E75] text-white"
+                              : "bg-[#EEEDFE] text-[#534AB7]"
+                          }`}
+                        >
+                          {milestone.achieved ? "สำเร็จแล้ว" : "กำลังทำ"}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="rounded-xl"
+                          disabled={isBusy}
+                          aria-label={`${milestone.achieved ? "ยกเลิกสำเร็จ" : "ทำสำเร็จ"} ${milestone.title}`}
+                          onClick={() => void handleToggleMilestone(milestone)}
+                        >
+                          {isBusy ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : milestone.achieved ? (
+                            "ยกเลิกสำเร็จ"
+                          ) : (
+                            "ทำสำเร็จ"
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="rounded-xl text-red-500 hover:text-red-600"
+                          disabled={isBusy}
+                          aria-label={`ลบ milestone ${milestone.title}`}
+                          onClick={() => void handleDeleteMilestone(milestone.id)}
+                        >
+                          {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -43,6 +43,19 @@ function getAllowedOrigins(): string[] {
 
 const allowedOrigins = getAllowedOrigins()
 
+function isLocalDevelopmentOrigin(origin: string): boolean {
+  if (process.env.NODE_ENV === 'production') {
+    return false
+  }
+
+  try {
+    const { hostname, protocol } = new URL(origin)
+    return protocol === 'http:' && ['localhost', '127.0.0.1'].includes(hostname)
+  } catch {
+    return false
+  }
+}
+
 app.set('trust proxy', 1)
 
 app.use(helmet())
@@ -57,7 +70,10 @@ app.use(
 
       const normalizedOrigin = origin.replace(/\/+$/, '')
 
-      if (allowedOrigins.includes(normalizedOrigin)) {
+      if (
+        allowedOrigins.includes(normalizedOrigin) ||
+        isLocalDevelopmentOrigin(normalizedOrigin)
+      ) {
         callback(null, true)
         return
       }

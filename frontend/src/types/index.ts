@@ -115,6 +115,12 @@ export interface Statistics {
     projectName: string
     total: number
   }>
+  weeklyData: Array<{
+    week: string
+    income: number
+    expense: number
+    profit: number
+  }>
   monthlyData: Array<{
     month: string
     income: number
@@ -122,6 +128,7 @@ export interface Statistics {
     profit: number
   }>
   streak: number
+  maxStreak: number
   milestonesCompleted: number
   goalsProgress: Array<{
     projectId: string

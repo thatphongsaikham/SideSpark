@@ -187,7 +187,7 @@ describe("ProjectsPage", () => {
     expect(await screen.findByTestId("project-detail")).toHaveTextContent("Canva Services")
   })
 
-  it("creates a project through the backend and refreshes the list", async () => {
+  it("creates a project with starter tasks through the backend and refreshes the list", async () => {
     const user = userEvent.setup()
 
     mockProjectsGetAll
@@ -204,7 +204,26 @@ describe("ProjectsPage", () => {
             status: "active",
             createdAt: "2026-04-20T00:00:00.000Z",
             updatedAt: "2026-04-20T00:00:00.000Z",
-            tasks: [],
+            tasks: [
+              {
+                id: "task-4",
+                projectId: "project-2",
+                text: "Shoot sample portfolio",
+                completed: false,
+                order: 0,
+                createdAt: "2026-04-20T00:00:00.000Z",
+                updatedAt: "2026-04-20T00:00:00.000Z",
+              },
+              {
+                id: "task-5",
+                projectId: "project-2",
+                text: "Contact first client",
+                completed: false,
+                order: 1,
+                createdAt: "2026-04-20T00:00:00.000Z",
+                updatedAt: "2026-04-20T00:00:00.000Z",
+              },
+            ],
             transactions: [],
           },
           ...projectsListResponse,
@@ -218,6 +237,10 @@ describe("ProjectsPage", () => {
 
     await user.type(screen.getByPlaceholderText("เช่น รับทำพรีเซนต์ Canva"), "Photo Service")
     await user.type(screen.getByPlaceholderText("อธิบายโปรเจกต์คร่าว ๆ"), "ถ่ายภาพสินค้า")
+    await user.type(screen.getByPlaceholderText("งานเริ่มต้น..."), "Shoot sample portfolio")
+    await user.click(screen.getByRole("button", { name: "เพิ่มงานเริ่มต้น" }))
+    await user.type(screen.getByPlaceholderText("งานเริ่มต้น..."), "Contact first client")
+    await user.click(screen.getByRole("button", { name: "เพิ่มงานเริ่มต้น" }))
 
     const amountInputs = screen.getAllByRole("spinbutton")
     fireEvent.change(amountInputs[0], { target: { value: "300" } })
@@ -230,6 +253,7 @@ describe("ProjectsPage", () => {
       description: "ถ่ายภาพสินค้า",
       initialCost: 300,
       monthlyGoal: 4000,
+      tasks: ["Shoot sample portfolio", "Contact first client"],
     })
 
     await waitFor(() => {

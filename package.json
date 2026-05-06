@@ -6,7 +6,7 @@
     "node": ">=18.18.0"
   },
   "scripts": {
-    "dev": "concurrently \"pnpm --filter frontend dev\" \"pnpm --filter backend dev\"",
+    "dev": "node scripts/dev.cjs",
     "build": "pnpm --filter frontend build && pnpm --filter backend build",
     "start": "concurrently \"pnpm --filter frontend start\" \"pnpm --filter backend start\"",
     "lint": "pnpm --filter frontend lint && pnpm --filter backend lint",

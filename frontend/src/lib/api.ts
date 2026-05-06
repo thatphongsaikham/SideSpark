@@ -200,6 +200,30 @@ export const api = {
     },
   },
 
+  milestones: {
+    getAll: () => apiRequest('/api/milestones'),
+    create: (data: {
+      title: string
+      target: string
+      description?: string
+    }) => apiRequest('/api/milestones', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id: string, data: {
+      title?: string
+      target?: string
+      description?: string | null
+      achieved?: boolean
+    }) => apiRequest(`/api/milestones/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id: string) => apiRequest(`/api/milestones/${id}`, {
+      method: 'DELETE',
+    }),
+  },
+
   // Skills methods
   skills: {
     getAll: (filters?: { category?: string; q?: string }) => {

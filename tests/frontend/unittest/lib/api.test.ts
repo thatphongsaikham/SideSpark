@@ -271,6 +271,43 @@ describe('API endpoint wrappers', () => {
       expectedUrl: '/api/transactions/summary/stats?startDate=2026-01-01&endDate=2026-01-31',
     },
     {
+      name: 'milestones.getAll',
+      call: () => api.milestones.getAll(),
+      expectedUrl: '/api/milestones',
+    },
+    {
+      name: 'milestones.create',
+      call: () => api.milestones.create({
+        title: 'First 1000 THB',
+        target: 'Earn the first 1,000 THB this month',
+        description: 'Focus on Canva work',
+      }),
+      expectedUrl: '/api/milestones',
+      expectedMethod: 'POST',
+      expectedBody: JSON.stringify({
+        title: 'First 1000 THB',
+        target: 'Earn the first 1,000 THB this month',
+        description: 'Focus on Canva work',
+      }),
+    },
+    {
+      name: 'milestones.update',
+      call: () => api.milestones.update('milestone-1', {
+        achieved: true,
+      }),
+      expectedUrl: '/api/milestones/milestone-1',
+      expectedMethod: 'PUT',
+      expectedBody: JSON.stringify({
+        achieved: true,
+      }),
+    },
+    {
+      name: 'milestones.delete',
+      call: () => api.milestones.delete('milestone-1'),
+      expectedUrl: '/api/milestones/milestone-1',
+      expectedMethod: 'DELETE',
+    },
+    {
       name: 'skills.getAll',
       call: () => api.skills.getAll({ category: 'design', q: 'figma' }),
       expectedUrl: '/api/skills?category=design&q=figma',

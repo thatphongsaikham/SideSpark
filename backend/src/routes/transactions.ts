@@ -1,6 +1,13 @@
 import express, { Request, Response } from 'express'
 import { prisma } from '../lib/prisma'
 import { authMiddleware } from '../middleware/auth'
+import {
+  buildGoalProgress,
+  buildProfitSeries,
+  calculateActivityStreak,
+  calculateMaxActivityStreak,
+  type ProfitTransactionRecord,
+} from '../lib/statistics'
 
 const router = express.Router()
 type TransactionParams = { id: string }
@@ -245,8 +252,16 @@ router.get('/summary/stats', async (req: Request, res: Response) => {
       }
     }
 
-    // Get totals
-    const [incomeResult, expenseResult, projectsResult] = await Promise.all([
+    // Get totals and source data
+    const [
+      incomeResult,
+      expenseResult,
+      projectsResult,
+      transactionsForSeries,
+      completedTaskActivities,
+      projectActivities,
+      milestoneActivities,
+    ] = await Promise.all([
       prisma.transaction.aggregate({
         where: { ...whereClause, type: 'income' },
         _sum: { amount: true }
@@ -262,7 +277,47 @@ router.get('/summary/stats', async (req: Request, res: Response) => {
           name: true,
           monthlyGoal: true
         }
-      })
+      }),
+      prisma.transaction.findMany({
+        where: { userId },
+        select: {
+          date: true,
+          type: true,
+          amount: true,
+        },
+        orderBy: { date: 'asc' },
+      }),
+      prisma.task.findMany({
+        where: {
+          completed: true,
+          project: {
+            userId,
+          },
+        },
+        select: {
+          updatedAt: true,
+        },
+      }),
+      prisma.project.findMany({
+        where: {
+          userId,
+        },
+        select: {
+          createdAt: true,
+        },
+      }),
+      prisma.milestone.findMany({
+        where: {
+          userId,
+          achieved: true,
+          achievedAt: {
+            not: null,
+          },
+        },
+        select: {
+          achievedAt: true,
+        },
+      }),
     ])
 
     const totalIncome = incomeResult._sum.amount || 0
@@ -293,59 +348,44 @@ router.get('/summary/stats', async (req: Request, res: Response) => {
       })
     )
 
-    // Get monthly data (last 6 months)
-    const sixMonthsAgo = new Date()
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
-    sixMonthsAgo.setDate(1)
-    sixMonthsAgo.setHours(0, 0, 0, 0)
+    const transactionSeriesSource: ProfitTransactionRecord[] =
+      transactionsForSeries.map((transaction) => ({
+        amount: transaction.amount,
+        date: transaction.date,
+        type: transaction.type,
+      }))
 
-    const monthlyData = await prisma.$queryRaw<Array<{
-      month: string
-      income: bigint
-      expense: bigint
-    }>>`
-      SELECT
-        TO_CHAR(date, 'YYYY-MM') as month,
-        SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
-        SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
-      FROM transactions
-      WHERE user_id = ${userId}
-        AND date >= ${sixMonthsAgo}
-      GROUP BY TO_CHAR(date, 'YYYY-MM')
-      ORDER BY month ASC
-    `
-
-    const formattedMonthlyData = monthlyData.map(item => ({
-      month: item.month,
-      income: Number(item.income),
-      expense: Number(item.expense),
-      profit: Number(item.income) - Number(item.expense)
+    const formattedMonthlyData = buildProfitSeries(transactionSeriesSource, {
+      interval: 'month',
+      periods: 6,
+    }).map((item) => ({
+      month: item.key,
+      income: item.income,
+      expense: item.expense,
+      profit: item.profit,
     }))
 
-    // Calculate goals progress
-    const goalsProgress = await Promise.all(
-      projectsResult.map(async (project) => {
-        const projectIncome = await prisma.transaction.aggregate({
-          where: {
-            projectId: project.id,
-            type: 'income',
-            date: {
-              gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-            }
-          },
-          _sum: { amount: true }
-        })
+    const formattedWeeklyData = buildProfitSeries(transactionSeriesSource, {
+      interval: 'week',
+      periods: 8,
+    }).map((item) => ({
+      week: item.key,
+      income: item.income,
+      expense: item.expense,
+      profit: item.profit,
+    }))
 
-        const current = projectIncome._sum.amount || 0
-        const progress = project.monthlyGoal > 0 ? (current / project.monthlyGoal) * 100 : 0
-
-        return {
-          projectId: project.id,
-          goal: project.monthlyGoal,
-          current,
-          progress: Math.min(100, Math.round(progress))
-        }
-      })
+    const goalsProgress = buildGoalProgress(
+      projectsResult,
+      incomeByProjectWithNames
+        .filter(
+          (item): item is { projectId: string; projectName: string; total: number } =>
+            item !== null,
+        )
+        .map((item) => ({
+          projectId: item.projectId,
+          total: item.total,
+        })),
     )
 
     // Get completed milestones
@@ -356,13 +396,27 @@ router.get('/summary/stats', async (req: Request, res: Response) => {
       }
     })
 
+    const activityDates = [
+      ...transactionsForSeries.map((transaction) => transaction.date),
+      ...completedTaskActivities.map((task) => task.updatedAt),
+      ...projectActivities.map((project) => project.createdAt),
+      ...milestoneActivities
+        .map((milestone) => milestone.achievedAt)
+        .filter((value): value is Date => value instanceof Date),
+    ]
+
+    const streak = calculateActivityStreak(activityDates)
+    const maxStreak = calculateMaxActivityStreak(activityDates)
+
     res.json({
       totalIncome,
       totalExpense,
       netProfit,
       incomeByProject: incomeByProjectWithNames.filter(Boolean),
+      weeklyData: formattedWeeklyData,
       monthlyData: formattedMonthlyData,
-      streak: 0, // TODO: Implement streak calculation
+      streak,
+      maxStreak,
       milestonesCompleted: completedMilestones,
       goalsProgress
     })
