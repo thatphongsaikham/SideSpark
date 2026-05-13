@@ -9,11 +9,11 @@ services:
       - key: NODE_ENV
         value: production
       - key: NEXTAUTH_URL
-        value: https://sidespark-frontend.onrender.com
+        value: https://codefasting.com
       - key: NEXTAUTH_SECRET
         generateValue: true
       - key: NEXT_PUBLIC_API_URL
-        value: https://sidespark-backend.onrender.com
+        value: https://api.codefasting.com
 
   - type: web
     name: sidespark-backend
@@ -30,7 +30,9 @@ services:
           name: sidespark-db
           property: connectionString
       - key: FRONTEND_URL
-        value: https://sidespark-frontend.onrender.com
+        value: https://codefasting.com,https://www.codefasting.com,https://sidespark.onrender.com
+      - key: FRONTEND_URLS
+        value: https://www.codefasting.com,https://sidespark-frontend.onrender.com
       - key: JWT_SECRET
         generateValue: true
       - key: REFRESH_TOKEN_SECRET
